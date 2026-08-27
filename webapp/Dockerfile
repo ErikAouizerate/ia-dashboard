@@ -3,7 +3,7 @@ RUN corepack enable
 
 FROM base AS dev
 WORKDIR /app
-COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY api/package.json api/package.json
 COPY webapp/package.json webapp/package.json
 RUN pnpm install --filter @ia-dashboard/webapp

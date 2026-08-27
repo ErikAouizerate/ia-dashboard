@@ -3,6 +3,12 @@
 Local dashboard that reads the OpenCode SQLite database (read-only) and lets the user
 annotate built features qualitatively. Annotations are stored in Postgres.
 
+See the root [README](../README.md) for setup and usage.
+
+## Project artifacts
+- [Design spec](superpowers/specs/2026-08-27-ia-dashboard-design.md)
+- [Implementation plan](superpowers/plans/2026-08-27-ia-dashboard.md)
+
 ## Sub-projects
 - `api/` — NestJS (TypeScript) API: reads `opencode.db` via better-sqlite3 (read-only),
   stores features + session snapshots in Postgres via Drizzle ORM.

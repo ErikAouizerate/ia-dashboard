@@ -5,7 +5,8 @@ import { configureStore } from "@reduxjs/toolkit";
 function makeStore() {
   return configureStore({
     reducer: (s: string[] = [], a: any) => [...s, a.type],
-    middleware: (gDM) => gDM({ thunk: false }).concat(apiMiddleware),
+    middleware: (gDM) =>
+      gDM({ thunk: false, serializableCheck: false }).concat(apiMiddleware),
   });
 }
 

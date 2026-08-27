@@ -8,6 +8,7 @@ services:
       target: dev
     environment:
       OPENCODE_DB_PATH: /opencode/opencode.db
+      CI: "true"
     volumes:
       - ./api:/app/api
       - ${OPENCODE_DATA_DIR:-${HOME}/.local/share/opencode}:/opencode:ro
@@ -19,6 +20,7 @@ services:
       target: dev
     environment:
       VITE_API_PROXY: http://api:3000
+      CI: "true"
     volumes:
       - ./webapp:/app/webapp
     ports:

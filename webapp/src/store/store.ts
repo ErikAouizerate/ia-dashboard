@@ -5,7 +5,8 @@ import { featuresReducer } from "./features";
 
 export const store = configureStore({
   reducer: { sessions: sessionsReducer, features: featuresReducer },
-  middleware: (gDM) => gDM({ thunk: false }).concat(apiMiddleware),
+  middleware: (gDM) =>
+    gDM({ thunk: false, serializableCheck: false }).concat(apiMiddleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
