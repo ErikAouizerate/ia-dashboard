@@ -36,4 +36,9 @@ export const api = {
     apiFetch<any>(`/api/features/${id}/sessions/${sessionId}`, { method: "DELETE" }),
   resyncSession: (id: string, sessionId: string) =>
     apiFetch<any>(`/api/features/${id}/sessions/${sessionId}/resync`, { method: "POST" }),
+  bulkLinkSessions: (id: string, sessionIds: string[]) =>
+    apiFetch<any>(`/api/features/${id}/sessions/bulk`, {
+      method: "POST",
+      body: JSON.stringify({ sessionIds }),
+    }),
 };

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { SessionRow } from "../store/sessions";
 import { SessionActions } from "./SessionActions";
+import { BulkLinkModal } from "./BulkLinkModal";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -12,6 +13,7 @@ import { Select } from "../components/ui/Field";
 import { Spinner } from "../components/ui/Spinner";
 import {
   allVisibleSelected,
+  computeBulkEligibility,
   setSelection,
   someVisibleSelected,
   toggleVisibleSelection,
@@ -101,6 +103,7 @@ export function SessionsView() {
   );
   const [selected, setSelected] = useState<Map<string, boolean>>(new Map());
   const [single, setSingle] = useState<SessionRow | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   useEffect(() => {
     const qs = new URLSearchParams({ page: String(page), ...filters }).toString();
@@ -119,6 +122,20 @@ export function SessionsView() {
 
   const allSel = allVisibleSelected(selected, items);
   const someSel = someVisibleSelected(selected, items);
+  const { eligible, skipped } = computeBulkEligibility(selected);
+  const suggestedName = useMemo(() => {
+    const first = items.find((s) => selected.has(s.id));
+    return first ? first.title : "";
+  }, [items, selected]);
+
+  const reload = () =>
+    dispatch({
+      type: "SESSIONS_LOAD_REQUESTED",
+      payload: {
+        path: `/api/sessions?${new URLSearchParams({ page: String(page), ...filters }).toString()}`,
+        filters,
+      },
+    });
 
   return (
     <div>
@@ -196,6 +213,38 @@ export function SessionsView() {
       <p className="mt-3 text-sm text-gray-500">Page {page}</p>
 
       {single && <SessionActions session={single} onClose={() => setSingle(null)} />}
+
+      {selected.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 shadow-lg backdrop-blur">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
+            <span className="text-sm text-gray-700">
+              <b>{eligible.length}</b> session(s) selected
+              {skipped > 0 ? ` · ${skipped} already linked (skipped)` : ""}
+            </span>
+            <div className="flex gap-2">
+              <Button onClick={() => setSelected(new Map())}>Clear</Button>
+              <Button variant="primary" onClick={() => setBulkOpen(true)} disabled={eligible.length === 0}>
+                Annotate / Link
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkOpen && (
+        <BulkLinkModal
+          sessionIds={eligible}
+          alreadyLinked={skipped}
+          suggestedName={suggestedName}
+          meta={meta}
+          onClose={() => setBulkOpen(false)}
+          onLinked={() => {
+            setBulkOpen(false);
+            setSelected(new Map());
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }
