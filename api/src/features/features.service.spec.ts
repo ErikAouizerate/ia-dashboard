@@ -105,4 +105,11 @@ describe("FeaturesService", () => {
     expect(rows[0].totalCost).toBe(2.5);
     expect(rows[0].totalTokensInput).toBe(300);
   });
+
+  it("update accepts null satisfaction/timeSpentMin to clear fields", async () => {
+    const db = makeDb([{ id: "f1" }]);
+    const svc = new FeaturesService(db as any, readerMock as any);
+    const out = await svc.update("f1", { satisfaction: null, timeSpentMin: null });
+    expect(out.id).toBe("f1");
+  });
 });
