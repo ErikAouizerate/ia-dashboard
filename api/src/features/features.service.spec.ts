@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FeaturesService } from "./features.service";
 
 const readerMock = {
@@ -111,5 +111,75 @@ describe("FeaturesService", () => {
     const svc = new FeaturesService(db as any, readerMock as any);
     const out = await svc.update("f1", { satisfaction: null, timeSpentMin: null });
     expect(out.id).toBe("f1");
+  });
+});
+
+describe("bulkLinkSessions", () => {
+  const sessionFixture = {
+    id: "s1",
+    projectId: "p1",
+    projectName: "gateway",
+    title: "Add auth",
+    model: "deepseek-v4-flash-free",
+    agent: "build",
+    cost: 1.25,
+    tokensInput: 100,
+    tokensOutput: 200,
+    tokensReasoning: 50,
+    tokensCacheRead: 300,
+    tokensCacheWrite: 0,
+    summaryAdditions: 10,
+    summaryDeletions: 5,
+    summaryFiles: 3,
+    timeCreated: 1785702292033,
+    timeUpdated: 1785703020414,
+  };
+
+  beforeEach(() => {
+    (readerMock.getSession as jest.Mock).mockReturnValue(sessionFixture);
+  });
+
+  it("links multiple sessions and skips already-linked ones", async () => {
+    const db = makeDb(
+      [{ id: "f1", name: "Auth" }], // findOne: feature row
+      [],                           // findOne: linked sessions list
+      [{ sessionId: "s2" }],        // existing-link check
+      [{ id: "fs1" }],              // insert snapshot for s1
+      [{ id: "fs3" }],              // insert snapshot for s3
+      [],                           // update feature.updatedAt
+    );
+    const svc = new FeaturesService(db as any, readerMock as any);
+    const out = await svc.bulkLinkSessions("f1", ["s1", "s2", "s3"]);
+    expect(out.linked).toEqual(["s1", "s3"]);
+    expect(out.skipped).toEqual(["s2"]);
+    expect(readerMock.getSession).toHaveBeenCalledWith("s1");
+    expect(readerMock.getSession).toHaveBeenCalledWith("s3");
+  });
+
+  it("skips unknown session ids", async () => {
+    (readerMock.getSession as jest.Mock).mockImplementation((id: string) =>
+      id === "s9" ? undefined : sessionFixture,
+    );
+    const db = makeDb(
+      [{ id: "f1" }], // findOne: feature row
+      [],             // findOne: linked sessions list
+      [],             // existing-link check
+    );
+    const svc = new FeaturesService(db as any, readerMock as any);
+    const out = await svc.bulkLinkSessions("f1", ["s9"]);
+    expect(out.linked).toEqual([]);
+    expect(out.skipped).toEqual(["s9"]);
+  });
+
+  it("rejects an empty sessionIds array", async () => {
+    const db = makeDb();
+    const svc = new FeaturesService(db as any, readerMock as any);
+    await expect(svc.bulkLinkSessions("f1", [])).rejects.toThrow(BadRequestException);
+  });
+
+  it("throws NotFoundException when the feature is missing", async () => {
+    const db = makeDb([]);
+    const svc = new FeaturesService(db as any, readerMock as any);
+    await expect(svc.bulkLinkSessions("missing", ["s1"])).rejects.toThrow(NotFoundException);
   });
 });

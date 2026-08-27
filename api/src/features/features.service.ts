@@ -147,6 +147,57 @@ export class FeaturesService {
     return { ok: true };
   }
 
+  async bulkLinkSessions(featureId: string, sessionIds: string[]) {
+    if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+      throw new BadRequestException("sessionIds must be a non-empty array");
+    }
+    await this.findOne(featureId);
+    const linked: string[] = [];
+    const skipped: string[] = [];
+    const existingRows = await this.db
+      .select({ sessionId: featureSessions.sessionId })
+      .from(featureSessions)
+      .where(inArray(featureSessions.sessionId, sessionIds));
+    const already = new Set(existingRows.map((r) => r.sessionId));
+    for (const sessionId of sessionIds) {
+      if (already.has(sessionId)) {
+        skipped.push(sessionId);
+        continue;
+      }
+      const s = this.reader.getSession(sessionId);
+      if (!s) {
+        skipped.push(sessionId);
+        continue;
+      }
+      await this.db.insert(featureSessions).values({
+        featureId,
+        sessionId: s.id,
+        title: s.title,
+        model: s.model,
+        agent: s.agent,
+        cost: s.cost,
+        tokensInput: s.tokensInput,
+        tokensOutput: s.tokensOutput,
+        tokensReasoning: s.tokensReasoning,
+        tokensCacheRead: s.tokensCacheRead,
+        tokensCacheWrite: s.tokensCacheWrite,
+        timeCreated: new Date(s.timeCreated),
+        timeUpdated: new Date(s.timeUpdated),
+        summaryAdditions: s.summaryAdditions,
+        summaryDeletions: s.summaryDeletions,
+        summaryFiles: s.summaryFiles,
+      });
+      linked.push(sessionId);
+    }
+    if (linked.length > 0) {
+      await this.db
+        .update(features)
+        .set({ updatedAt: new Date() })
+        .where(eq(features.id, featureId));
+    }
+    return { linked, skipped };
+  }
+
   async resyncSession(featureId: string, sessionId: string) {
     const s = this.reader.getSession(sessionId);
     if (!s) throw new BadRequestException("Session not found in OpenCode DB");

@@ -44,6 +44,11 @@ export class FeaturesController {
     return this.svc.linkSession(id, body.sessionId);
   }
 
+  @Post(":id/sessions/bulk")
+  bulkLink(@Param("id") id: string, @Body() body: { sessionIds: string[] }) {
+    return this.svc.bulkLinkSessions(id, body.sessionIds);
+  }
+
   @Delete(":id/sessions/:sessionId")
   unlink(@Param("id") id: string, @Param("sessionId") sessionId: string) {
     return this.svc.unlinkSession(id, sessionId);
