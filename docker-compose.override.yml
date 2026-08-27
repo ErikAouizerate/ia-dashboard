@@ -1,0 +1,25 @@
+services:
+  db:
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      target: dev
+    environment:
+      OPENCODE_DB_PATH: /opencode/opencode.db
+    volumes:
+      - ./api:/app/api
+      - ${OPENCODE_DATA_DIR:-${HOME}/.local/share/opencode}:/opencode:ro
+    ports:
+      - "3000:3000"
+
+  webapp:
+    build:
+      target: dev
+    environment:
+      VITE_API_PROXY: http://api:3000
+    volumes:
+      - ./webapp:/app/webapp
+    ports:
+      - "5173:5173"

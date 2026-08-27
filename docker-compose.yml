@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ia}
+      POSTGRES_DB: ${POSTGRES_DB:-ia_dashboard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ia} -d ${POSTGRES_DB:-ia_dashboard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-ia}:${POSTGRES_PASSWORD:-ia}@db:5432/${POSTGRES_DB:-ia_dashboard}
+      OPENCODE_DB_PATH: /opencode/opencode.db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  webapp:
+    build:
+      context: .
+      dockerfile: webapp/Dockerfile
+    expose:
+      - "5173"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
