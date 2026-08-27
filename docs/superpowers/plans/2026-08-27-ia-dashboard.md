@@ -712,7 +712,8 @@ import {
 interface Row {
   id: string;
   project_id: string;
-  project_name: string;
+  project_name: string | null;
+  project_worktree: string | null;
   title: string;
   model: string;
   agent: string | null;
@@ -785,7 +786,7 @@ export class OpenCodeReader {
 
     const rows = db
       .prepare(
-        `SELECT s.id, s.project_id, p.name AS project_name, s.title, s.model, s.agent,
+        `SELECT s.id, s.project_id, p.name AS project_name, p.worktree AS project_worktree, s.title, s.model, s.agent,
                 s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
                 s.tokens_cache_read, s.tokens_cache_write,
                 s.summary_additions, s.summary_deletions, s.summary_files,
@@ -809,7 +810,7 @@ export class OpenCodeReader {
     const db = this.requireDb();
     const r = db
       .prepare(
-        `SELECT s.id, s.project_id, p.name AS project_name, s.title, s.model, s.agent,
+        `SELECT s.id, s.project_id, p.name AS project_name, p.worktree AS project_worktree, s.title, s.model, s.agent,
                 s.cost, s.tokens_input, s.tokens_output, s.tokens_reasoning,
                 s.tokens_cache_read, s.tokens_cache_write,
                 s.summary_additions, s.summary_deletions, s.summary_files,
@@ -876,7 +877,7 @@ export class OpenCodeReader {
     return {
       id: r.id,
       projectId: r.project_id,
-      projectName: this.projectName(r.project_id, r.project_name, r.project_name),
+      projectName: this.projectName(r.project_id, r.project_name, r.project_worktree),
       title: r.title,
       model,
       agent: r.agent,
