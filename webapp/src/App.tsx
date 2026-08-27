@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { SessionsView } from "./views/SessionsView";
 
 export function App() {
   return (
@@ -12,7 +13,9 @@ export function App() {
         </NavLink>
       </nav>
       <Routes>
-        <Route path="*" element={<div className="p-6 text-gray-500">Select a view.</div>} />
+        <Route path="/" element={<SessionsView />} />
+        <Route path="/sessions" element={<SessionsView />} />
+        <Route path="/features" element={<div className="p-6 text-gray-500">Coming soon.</div>} />
       </Routes>
     </BrowserRouter>
   );
