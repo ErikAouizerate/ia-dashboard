@@ -1,0 +1,7 @@
+packages:
+  - "api"
+  - "webapp"
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+blockExoticSubdeps: true
+strictDepBuilds: true
