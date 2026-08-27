@@ -18,4 +18,4 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm --filter @ia-dashboard/api build
 EXPOSE 3000
-CMD ["node", "api/dist/main.js"]
+CMD ["node", "api/dist/src/main.js"]
