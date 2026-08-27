@@ -28,6 +28,7 @@ export function BulkLinkModal({
   const [purpose, setPurpose] = useState("");
   const [satisfaction, setSatisfaction] = useState(3);
   const [features, setFeatures] = useState<any[]>([]);
+  const [featuresLoading, setFeaturesLoading] = useState(false);
   const [featureId, setFeatureId] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ linked: string[]; skipped: string[] } | null>(null);
@@ -36,15 +37,20 @@ export function BulkLinkModal({
   useEffect(() => {
     if (tab !== "existing") return;
     let cancelled = false;
+    setFeaturesLoading(true);
     api
       .features()
       .then((f) => {
         if (cancelled) return;
         setFeatures(f);
+        setFeaturesLoading(false);
         if (f.length > 0) setFeatureId(f[0].id);
       })
       .catch((e: any) => {
-        if (!cancelled) setError(String(e.message ?? e));
+        if (!cancelled) {
+          setFeaturesLoading(false);
+          setError(String(e.message ?? e));
+        }
       });
     return () => {
       cancelled = true;
@@ -86,7 +92,12 @@ export function BulkLinkModal({
         ) : (
           <>
             <Button onClick={onClose}>Cancel</Button>
-            <Button variant="primary" onClick={submit} disabled={busy} loading={busy}>
+            <Button
+              variant="primary"
+              onClick={submit}
+              disabled={busy || (tab === "existing" && featureId === "")}
+              loading={busy}
+            >
               Link sessions
             </Button>
           </>
@@ -152,10 +163,14 @@ export function BulkLinkModal({
             </div>
           ) : (
             <Field label="Feature">
-              {features.length === 0 ? (
+              {featuresLoading ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Spinner /> Loading features…
                 </div>
+              ) : features.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No features available yet — use the New feature tab.
+                </p>
               ) : (
                 <Select value={featureId} onChange={(e) => setFeatureId(e.target.value)}>
                   {features.map((f) => (
