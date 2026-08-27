@@ -48,8 +48,9 @@ Small shared components, all Tailwind v4 + TypeScript, no extra deps:
   feature status + annotated badge.
 - `Card` — white rounded bordered container.
 - `Modal` — centered dialog (overlay, Escape + backdrop click to close, title,
-  footer slot). Replaces the current right-drawer for bulk; the unitary
-  `SessionActions` drawer stays as-is.
+  footer slot). Used for the bulk flow. The unitary `SessionActions` drawer keeps
+  its right-drawer layout but is restyled onto the same primitives
+  (`Field`/`Button`), so the whole app is visually consistent.
 - `Field` — label + input/select/textarea with consistent styling.
 - `Spinner`, `EmptyState`, `PageHeader` — helpers.
 
@@ -133,8 +134,10 @@ Small shared components, all Tailwind v4 + TypeScript, no extra deps:
 - `api/` (Jest): `features.service.spec.ts` — bulk link: links multiple, skips
   already-linked, skips unknown ids, returns linked/skipped arrays; empty body
   → 400; feature missing → 404.
-- `webapp/` (Vitest): selection logic (toggle, page toggle, persisted union),
-  bulk eligibility (skip already-annotated), `BulkLinkModal` rendering states.
+- `webapp/` (Vitest): pure-logic tests for `lib/selection.ts` (toggle, page
+  toggle-all, persisted union, bulk eligibility skip of already-annotated).
+  No component-test infra exists (no jsdom/@testing-library), so components are
+  verified by typecheck + manual dev run — no new dependencies are introduced.
 - `pnpm test` at root runs both.
 
 ## Constraints (policies)
