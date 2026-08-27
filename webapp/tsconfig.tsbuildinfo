@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/api/client.ts","./src/store/apiMiddleware.spec.ts","./src/store/apiMiddleware.ts","./src/store/features.ts","./src/store/sessions.ts","./src/store/store.ts"],"version":"5.9.3"}
