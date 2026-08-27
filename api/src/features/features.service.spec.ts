@@ -182,4 +182,17 @@ describe("bulkLinkSessions", () => {
     const svc = new FeaturesService(db as any, readerMock as any);
     await expect(svc.bulkLinkSessions("missing", ["s1"])).rejects.toThrow(NotFoundException);
   });
+
+  it("deduplicates session ids within a single request", async () => {
+    const db = makeDb(
+      [{ id: "f1" }], // findOne: feature row
+      [],             // findOne: linked sessions list
+      [],             // existing-link check
+      [{ id: "fs1" }], // insert (single, deduped)
+    );
+    const svc = new FeaturesService(db as any, readerMock as any);
+    const out = await svc.bulkLinkSessions("f1", ["s1", "s1"]);
+    expect(out.linked).toEqual(["s1"]);
+    expect(out.skipped).toEqual([]);
+  });
 });

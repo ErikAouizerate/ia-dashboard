@@ -80,10 +80,12 @@ export function BulkLinkModal({
     }
   };
 
+  const handleClose = () => (result ? onLinked() : onClose());
+
   return (
     <Modal
       title={`Annotate / link ${sessionIds.length} session(s)`}
-      onClose={onClose}
+      onClose={handleClose}
       footer={
         result ? (
           <Button variant="primary" onClick={onLinked}>

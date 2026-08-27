@@ -69,6 +69,16 @@ export function FeatureDetail() {
           <b>Purpose:</b> {current.purpose}
         </p>
       )}
+      {current.satisfaction && (
+        <p className="mb-4 text-sm text-gray-700">
+          <b>Satisfaction:</b> ★{current.satisfaction}
+        </p>
+      )}
+      {current.timeSpentMin != null && (
+        <p className="mb-4 text-sm text-gray-700">
+          <b>Time spent:</b> {current.timeSpentMin} min
+        </p>
+      )}
       {current.comment && (
         <p className="mb-4 text-sm text-gray-700">
           <b>Comment:</b> {current.comment}

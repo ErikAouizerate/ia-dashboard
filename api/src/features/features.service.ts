@@ -151,6 +151,7 @@ export class FeaturesService {
     if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
       throw new BadRequestException("sessionIds must be a non-empty array");
     }
+    sessionIds = [...new Set(sessionIds)];
     await this.findOne(featureId);
     const linked: string[] = [];
     const skipped: string[] = [];
