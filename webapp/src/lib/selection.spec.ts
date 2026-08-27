@@ -50,4 +50,31 @@ describe("selection", () => {
     const cleared = toggleVisibleSelection(selected, rows);
     expect(cleared.size).toBe(0);
   });
+
+  it("clearing visible rows preserves off-page selection (union persists across pages)", () => {
+    const rows = [
+      { id: "s1", annotated: false },
+      { id: "s2", annotated: true },
+    ];
+    const allVisiblePlusOffPage = new Map<string, boolean>([
+      ["s1", false],
+      ["s2", true],
+      ["s9", false],
+    ]);
+    const cleared = toggleVisibleSelection(allVisiblePlusOffPage, rows);
+    expect(cleared.has("s1")).toBe(false);
+    expect(cleared.has("s2")).toBe(false);
+    expect(cleared.get("s9")).toBe(false);
+  });
+
+  it("toggleVisibleSelection adds missing visible rows when some are already selected", () => {
+    const rows = [
+      { id: "s1", annotated: false },
+      { id: "s2", annotated: true },
+    ];
+    const some = new Map<string, boolean>([["s2", true]]);
+    const next = toggleVisibleSelection(some, rows);
+    expect(next.get("s1")).toBe(false);
+    expect(next.get("s2")).toBe(true);
+  });
 });

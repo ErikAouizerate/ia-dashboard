@@ -11,7 +11,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export function App() {
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex h-screen overflow-hidden bg-gray-50">
         <aside className="w-52 shrink-0 border-r border-gray-200 bg-white">
           <div className="flex h-full flex-col gap-1 px-3 py-4">
             <div className="mb-3 px-3 text-lg font-semibold text-gray-900">ia-dashboard</div>
@@ -23,7 +23,7 @@ export function App() {
             </NavLink>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 p-6">
+        <main className="min-w-0 flex-1 overflow-y-auto p-6">
           <Routes>
             <Route path="/" element={<SessionsView />} />
             <Route path="/sessions" element={<SessionsView />} />
