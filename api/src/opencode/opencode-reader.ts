@@ -61,7 +61,9 @@ export class OpenCodeReader {
     const params: Record<string, unknown> = {};
 
     if (filters.project) {
-      where.push("p.name = @project OR (@project = 'global' AND s.project_id = 'global')");
+      where.push(
+        "(p.name = @project OR p.id = @project OR p.worktree LIKE '%/' || @project OR (@project = 'global' AND s.project_id = 'global'))",
+      );
       params.project = filters.project;
     }
     if (filters.model) {

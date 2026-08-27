@@ -79,3 +79,8 @@ pnpm test
 
 Dokploy deploys `docker-compose.yml` as-is. Services use `expose` (no host `ports`)
 and Traefik handles TLS — do not add `ports:` or Caddy to the base compose file.
+
+> The base compose sets `OPENCODE_DB_PATH=/opencode/opencode.db`, but the `/opencode`
+> volume is only mounted by the dev override. A production deployment must mount the
+> OpenCode data directory (or a copy) at `/opencode` read-only, otherwise the API
+> reports the DB as missing.

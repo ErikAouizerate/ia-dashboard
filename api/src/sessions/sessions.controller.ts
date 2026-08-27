@@ -19,14 +19,17 @@ export class SessionsController {
     };
     const page = this.svc.list(filters);
     const map = await this.svc.annotatedMap(page.items.map((i) => i.id));
-    return {
-      ...page,
-      items: page.items.map((i) => ({
-        ...i,
-        annotated: map[i.id] != null,
-        featureId: map[i.id] ?? null,
-      })),
-    };
+    let items = page.items.map((i) => ({
+      ...i,
+      annotated: map[i.id] != null,
+      featureId: map[i.id] ?? null,
+    }));
+    if (q.annotated === "yes") {
+      items = items.filter((i) => i.annotated);
+    } else if (q.annotated === "no") {
+      items = items.filter((i) => !i.annotated);
+    }
+    return { ...page, total: items.length, items };
   }
 
   @Get("meta")

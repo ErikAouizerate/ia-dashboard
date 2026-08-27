@@ -4,7 +4,12 @@ import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, featureSessions } from "../db/schema";
-import { CreateFeatureDto, UpdateFeatureDto } from "./dto";
+import {
+  CreateFeatureDto,
+  UpdateFeatureDto,
+  createFeatureSchema,
+  updateFeatureSchema,
+} from "./dto";
 
 @Injectable()
 export class FeaturesService {
@@ -14,9 +19,16 @@ export class FeaturesService {
   ) {}
 
   async create(input: CreateFeatureDto) {
+    const parsed = createFeatureSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      );
+    }
+    const data = parsed.data;
     const rows = await this.db
       .insert(features)
-      .values({ ...input, tags: input.tags ?? [] })
+      .values({ ...data, tags: data.tags ?? [] })
       .returning();
     return rows[0];
   }
@@ -64,9 +76,15 @@ export class FeaturesService {
   }
 
   async update(id: string, patch: UpdateFeatureDto) {
+    const parsed = updateFeatureSchema.safeParse(patch);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      );
+    }
     const rows = await this.db
       .update(features)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({ ...parsed.data, updatedAt: new Date() })
       .where(eq(features.id, id))
       .returning();
     if (rows.length === 0) throw new NotFoundException("Feature not found");

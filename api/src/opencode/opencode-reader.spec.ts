@@ -78,6 +78,12 @@ describe("OpenCodeReader", () => {
     expect(page.items.length).toBe(1);
   });
 
+  it("filters by derived project name (worktree basename)", () => {
+    const page = reader.listSessions({ project: "gateway" });
+    expect(page.total).toBe(1);
+    expect(page.items[0].id).toBe("s1");
+  });
+
   it("lists projects deriving name from worktree basename", () => {
     const projects = reader.listProjects();
     expect(projects.find((p) => p.id === "proj1")?.name).toBe("gateway");

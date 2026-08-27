@@ -6,7 +6,9 @@ export function FeatureForm({ feature }: { feature: any }) {
   const dispatch = useDispatch();
   const [name, setName] = useState(feature.name);
   const [purpose, setPurpose] = useState(feature.purpose ?? "");
-  const [satisfaction, setSatisfaction] = useState(feature.satisfaction ?? 3);
+  const [satisfaction, setSatisfaction] = useState(
+    feature.satisfaction != null ? String(feature.satisfaction) : "",
+  );
   const [status, setStatus] = useState(feature.status);
   const [comment, setComment] = useState(feature.comment ?? "");
   const [timeSpentMin, setTimeSpentMin] = useState(
@@ -26,7 +28,7 @@ export function FeatureForm({ feature }: { feature: any }) {
     await api.updateFeature(feature.id, {
       name,
       purpose,
-      satisfaction: Number(satisfaction),
+      satisfaction: satisfaction === "" ? null : Number(satisfaction),
       status,
       comment,
       timeSpentMin: timeSpentMin === "" ? null : Number(timeSpentMin),
@@ -75,7 +77,7 @@ export function FeatureForm({ feature }: { feature: any }) {
           max={5}
           className="w-full rounded border px-2 py-1"
           value={satisfaction}
-          onChange={(e) => setSatisfaction(Number(e.target.value))}
+          onChange={(e) => setSatisfaction(e.target.value)}
         />
       </label>
       <label className="col-span-2">
