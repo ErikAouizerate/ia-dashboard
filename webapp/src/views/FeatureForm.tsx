@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useDispatch } from "react-redux";
 import { api } from "../api/client";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { Field, Select, TextArea, TextInput } from "../components/ui/Field";
 
 export function FeatureForm({ feature }: { feature: any }) {
   const dispatch = useDispatch();
@@ -39,74 +42,48 @@ export function FeatureForm({ feature }: { feature: any }) {
   };
 
   return (
-    <div className="grid max-w-lg grid-cols-2 gap-3 rounded border p-4">
-      <label className="col-span-2">
-        Name
-        <input
-          className="w-full rounded border px-2 py-1"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <label className="col-span-2">
-        Purpose
-        <textarea
-          className="w-full rounded border px-2 py-1"
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-        />
-      </label>
-      <label>
-        Status
-        <select
-          className="w-full rounded border px-2 py-1"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option>planned</option>
-          <option>in_progress</option>
-          <option>done</option>
-          <option>abandoned</option>
-        </select>
-      </label>
-      <label>
-        Satisfaction (1–5)
-        <input
-          type="number"
-          min={1}
-          max={5}
-          className="w-full rounded border px-2 py-1"
-          value={satisfaction}
-          onChange={(e) => setSatisfaction(e.target.value)}
-        />
-      </label>
-      <label className="col-span-2">
-        Time spent (min)
-        <input
-          type="number"
-          className="w-full rounded border px-2 py-1"
-          value={timeSpentMin}
-          onChange={(e) => setTimeSpentMin(e.target.value)}
-        />
-      </label>
-      <label className="col-span-2">
-        Comment
-        <textarea
-          className="w-full rounded border px-2 py-1"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-      </label>
-      <div className="col-span-2 flex items-center gap-3">
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="rounded bg-blue-600 px-3 py-1 text-white"
-        >
-          {busy ? "Saving…" : "Save"}
-        </button>
-        {saved && <span className="text-sm text-green-700">Saved.</span>}
+    <Card className="mb-6 max-w-lg p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Name" className="col-span-2">
+          <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Purpose" className="col-span-2">
+          <TextArea value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+        </Field>
+        <Field label="Status">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option>planned</option>
+            <option>in_progress</option>
+            <option>done</option>
+            <option>abandoned</option>
+          </Select>
+        </Field>
+        <Field label="Satisfaction (1–5)">
+          <TextInput
+            type="number"
+            min={1}
+            max={5}
+            value={satisfaction}
+            onChange={(e) => setSatisfaction(e.target.value)}
+          />
+        </Field>
+        <Field label="Time spent (min)" className="col-span-2">
+          <TextInput
+            type="number"
+            value={timeSpentMin}
+            onChange={(e) => setTimeSpentMin(e.target.value)}
+          />
+        </Field>
+        <Field label="Comment" className="col-span-2">
+          <TextArea value={comment} onChange={(e) => setComment(e.target.value)} />
+        </Field>
+        <div className="col-span-2 flex items-center gap-3">
+          <Button variant="primary" onClick={submit} disabled={busy} loading={busy}>
+            Save
+          </Button>
+          {saved && <span className="text-sm text-green-700">Saved.</span>}
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
