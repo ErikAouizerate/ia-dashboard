@@ -5,3 +5,6 @@ minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 blockExoticSubdeps: true
 strictDepBuilds: true
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
