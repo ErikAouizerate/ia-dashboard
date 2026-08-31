@@ -31,6 +31,7 @@ export interface OpenCodeProject {
 export interface SessionListFilters {
   project?: string;
   directory?: string;
+  directories?: string[];
   model?: string;
   from?: string;
   to?: string;

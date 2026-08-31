@@ -102,7 +102,8 @@ function buildFixture(dir: string): string {
 function buildMultiModelFixture(dir: string): string {
   const path = join(dir, "opencode.db");
   const db = new Database(path);
-  db.exec(`CREATE TABLE session (
+  db.exec(`CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
+           CREATE TABLE session (
              id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
              title TEXT, model TEXT, agent TEXT,
              cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
@@ -282,6 +283,11 @@ describe("OpenCodeReader", () => {
     expect(page.total).toBe(2);
   });
 
+  it("filters sessions by a directories list", () => {
+    const page = reader.listSessions({ directories: ["/home/user/gateway"] });
+    expect(page.total).toBe(2);
+  });
+
   it("filters sessions to parents only", () => {
     const page = reader.listSessions({ parentOnly: true });
     expect(page.items.map((s) => s.id)).toEqual(["s1"]);
@@ -338,6 +344,13 @@ describe("OpenCodeReader", () => {
       const claude = gateway.find((r) => r.model === "claude-sonnet-4-20250514");
       expect(claude?.sessions).toBe(1);
       expect(rows.filter((r) => r.directory === "/home/user/api").length).toBe(2);
+    });
+
+    it("filters sessions by multiple directories", () => {
+      const page = reader.listSessions({
+        directories: ["/home/user/gateway", "/home/user/api"],
+      });
+      expect(page.total).toBe(6); // gateway: g1, g1-sub, g2, g3 ; api: a1, a2
     });
 
     it("computes processing time from part intervals, excluding user pauses", () => {

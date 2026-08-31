@@ -88,6 +88,13 @@ export class OpenCodeReader {
       where.push("s.directory = @directory");
       params.directory = filters.directory;
     }
+    if (filters.directories && filters.directories.length > 0) {
+      const placeholders = filters.directories.map((_, i) => `@d${i}`).join(", ");
+      where.push(`s.directory IN (${placeholders})`);
+      filters.directories.forEach((d, i) => {
+        params[`d${i}`] = d;
+      });
+    }
     if (filters.model) {
       where.push("json_extract(s.model, '$.id') = @model");
       params.model = filters.model;
