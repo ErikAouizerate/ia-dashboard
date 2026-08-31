@@ -8,6 +8,7 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { formatDuration } from "../lib/format";
 import { buildModelColorMap } from "../lib/modelColors";
+import { isExcludedProject } from "../lib/excludedProjects";
 
 export function DashboardView() {
   const dispatch = useDispatch();
@@ -16,6 +17,12 @@ export function DashboardView() {
   );
   const [days, setDays] = useState(periodDays);
   const colorOf = summary ? buildModelColorMap(summary.byProject) : () => "";
+  const visibleByProject = summary
+    ? summary.byProject.filter((r) => !isExcludedProject(r.name))
+    : [];
+  const visibleTimeByProject = summary
+    ? summary.timeByProject.filter((r) => !isExcludedProject(r.name))
+    : [];
 
   const load = (d: number) => {
     setDays(d);
@@ -37,6 +44,12 @@ export function DashboardView() {
     <div>
       <PageHeader title="Dashboard" subtitle="Coûts & tokens OpenCode" />
       <div className="mb-4 flex gap-2">
+        <Button
+          variant={days === 0 ? "primary" : "secondary"}
+          onClick={() => load(0)}
+        >
+          Tout
+        </Button>
         <Button
           variant={days === 7 ? "primary" : "secondary"}
           onClick={() => load(7)}
@@ -65,7 +78,7 @@ export function DashboardView() {
             <KpiCard
               label="Sessions"
               value={String(summary.sessionCount)}
-              sub={`${summary.periodDays} jours`}
+              sub={days === 0 ? "Tout" : `${summary.periodDays} jours`}
             />
             <KpiCard
               label="Analysées / Features"
@@ -76,7 +89,7 @@ export function DashboardView() {
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût par projet</h3>
               <BarList
-                rows={summary.byProject}
+                rows={visibleByProject}
                 valueOf={(r) => r.totalCost}
                 labelOf={(r) => r.name}
                 to={(r) => (r.id ? `/projects/${r.id}` : undefined)}
@@ -92,7 +105,7 @@ export function DashboardView() {
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Tokens par projet</h3>
               <BarList
-                rows={summary.byProject}
+                rows={visibleByProject}
                 valueOf={(r) => r.tokensInput + r.tokensOutput}
                 labelOf={(r) => r.name}
                 to={(r) => (r.id ? `/projects/${r.id}` : undefined)}
@@ -128,7 +141,7 @@ export function DashboardView() {
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Temps passé par projet</h3>
               <BarList
-                rows={summary.timeByProject}
+                rows={visibleTimeByProject}
                 valueOf={(r) => r.durationMs}
                 labelOf={(r) => r.name}
                 to={(r) => (r.id ? `/projects/${r.id}` : undefined)}

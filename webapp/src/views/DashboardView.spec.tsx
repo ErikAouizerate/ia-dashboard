@@ -6,13 +6,13 @@ import { MemoryRouter } from "react-router-dom";
 import { dashboardReducer } from "../store/dashboard";
 import { DashboardView } from "./DashboardView";
 
-function makeStore(summary: any, loading = false) {
+function makeStore(summary: any, loading = false, periodDays = 7) {
   return configureStore({
     reducer: { dashboard: dashboardReducer },
     middleware: (gDM) => gDM({ thunk: false, serializableCheck: false }),
     preloadedState: {
       dashboard: {
-        periodDays: 7,
+        periodDays,
         loading,
         error: null,
         summary,
@@ -126,5 +126,58 @@ describe("DashboardView", () => {
     // Tokens par projet en 2e position, juste après Coût par projet
     expect(html.indexOf("Coût par projet")).toBeLessThan(html.indexOf("Tokens par projet"));
     expect(html.indexOf("Tokens par projet")).toBeLessThan(html.indexOf("Coût par modèle"));
+  });
+
+  it("renders a Tout button for the all-time filter", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore(summary)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("Tout");
+  });
+
+  it("hides excluded projects from the project lists", () => {
+    const withExcluded = {
+      ...summary,
+      byProject: [
+        ...summary.byProject,
+        {
+          id: "nominal:tmp",
+          name: "tmp",
+          totalCost: 1,
+          sessions: 1,
+          tokensInput: 10,
+          tokensOutput: 10,
+          models: [],
+        },
+      ],
+      timeByProject: [
+        ...summary.timeByProject,
+        { directory: "/p/tmp", name: "tmp", durationMs: 60000, id: "nominal:tmp" },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore(withExcluded)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("gateway");
+    expect(html).not.toContain("tmp");
+  });
+
+  it("renders Tout as the sessions KPI subtitle when the all-time filter is active", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore({ ...summary, periodDays: 0 }, false, 0)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain('<div class="text-sm text-gray-500">Tout</div>');
   });
 });
