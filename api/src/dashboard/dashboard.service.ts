@@ -28,17 +28,34 @@ export class DashboardService {
       this.db.select({ id: projects.id, directory: projects.directory }).from(projects),
     ]);
     const idByDir = new Map(projectRows.map((p) => [p.directory, p.id]));
+    const modelRows = this.reader.aggregateByDirectoryAndModel({ from });
+    const timeRows = this.reader.timeByDirectory({ from });
+    const byProject = this.reader
+      .aggregateByDirectory({ from })
+      .map((a) => {
+        const models = modelRows
+          .filter((m) => m.directory === a.directory)
+          .map((m) => ({ ...m, share: a.sessions > 0 ? m.sessions / a.sessions : 0 }))
+          .sort((x, y) => y.sessions - x.sessions);
+        return { ...a, id: idByDir.get(a.directory) ?? null, models };
+      });
+    const timeByProject = timeRows
+      .map((t) => ({
+        ...t,
+        name: t.directory.split("/").filter(Boolean).pop() ?? t.directory,
+        id: idByDir.get(t.directory) ?? null,
+      }))
+      .sort((a, b) => b.durationMs - a.durationMs);
     return {
       periodDays,
       ...all,
       sessionCount: all.sessions,
       analysedCount,
       featureCount,
-      byProject: this.reader
-        .aggregateByDirectory({ from })
-        .map((a) => ({ ...a, id: idByDir.get(a.directory) ?? null })),
+      byProject,
       byModel: this.reader.aggregateByModel({ from }),
       byDay: this.reader.aggregateByDay({ from }),
+      timeByProject,
     };
   }
 }

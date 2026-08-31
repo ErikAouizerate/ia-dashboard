@@ -8,13 +8,34 @@ const readerMock = {
     sessions: 4,
   }),
   aggregateByDirectory: jest.fn().mockReturnValue([
-    { directory: "/p/gateway", name: "gateway", totalCost: 10 },
+    { directory: "/p/gateway", name: "gateway", totalCost: 10, sessions: 2 },
   ]),
   aggregateByModel: jest.fn().mockReturnValue([
     { model: "deepseek-v4-flash", totalCost: 10 },
   ]),
   aggregateByDay: jest.fn().mockReturnValue([
     { day: "2026-08-27", totalCost: 10 },
+  ]),
+  aggregateByDirectoryAndModel: jest.fn().mockReturnValue([
+    {
+      directory: "/p/gateway",
+      model: "deepseek-v4-flash",
+      totalCost: 6,
+      tokensInput: 5,
+      tokensOutput: 5,
+      sessions: 1,
+    },
+    {
+      directory: "/p/gateway",
+      model: "claude-sonnet",
+      totalCost: 4,
+      tokensInput: 3,
+      tokensOutput: 3,
+      sessions: 1,
+    },
+  ]),
+  timeByDirectory: jest.fn().mockReturnValue([
+    { directory: "/p/gateway", durationMs: 3600000 },
   ]),
 };
 
@@ -43,5 +64,28 @@ describe("DashboardService", () => {
     expect(out.featureCount).toBe(5);
     expect(out.byProject[0].name).toBe("gateway");
     expect(out.byProject[0].id).toBe("p1");
+    expect(out.byProject[0].models).toEqual([
+      {
+        directory: "/p/gateway",
+        model: "deepseek-v4-flash",
+        totalCost: 6,
+        tokensInput: 5,
+        tokensOutput: 5,
+        sessions: 1,
+        share: 0.5,
+      },
+      {
+        directory: "/p/gateway",
+        model: "claude-sonnet",
+        totalCost: 4,
+        tokensInput: 3,
+        tokensOutput: 3,
+        sessions: 1,
+        share: 0.5,
+      },
+    ]);
+    expect(out.timeByProject).toEqual([
+      { directory: "/p/gateway", name: "gateway", durationMs: 3600000, id: "p1" },
+    ]);
   });
 });
