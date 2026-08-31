@@ -3,7 +3,7 @@ import { useDispatch } from "react-redux";
 import { api } from "../api/client";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { Field, Select, TextArea, TextInput } from "../components/ui/Field";
+import { Field, TextArea, TextInput } from "../components/ui/Field";
 
 export function FeatureForm({ feature }: { feature: any }) {
   const dispatch = useDispatch();
@@ -12,7 +12,6 @@ export function FeatureForm({ feature }: { feature: any }) {
   const [satisfaction, setSatisfaction] = useState(
     feature.satisfaction != null ? String(feature.satisfaction) : "",
   );
-  const [status, setStatus] = useState(feature.status);
   const [comment, setComment] = useState(feature.comment ?? "");
   const [timeSpentMin, setTimeSpentMin] = useState(
     feature.timeSpentMin != null ? String(feature.timeSpentMin) : "",
@@ -32,7 +31,6 @@ export function FeatureForm({ feature }: { feature: any }) {
       name,
       purpose,
       satisfaction: satisfaction === "" ? null : Number(satisfaction),
-      status,
       comment,
       timeSpentMin: timeSpentMin === "" ? null : Number(timeSpentMin),
     });
@@ -49,14 +47,6 @@ export function FeatureForm({ feature }: { feature: any }) {
         </Field>
         <Field label="Purpose" className="col-span-2">
           <TextArea value={purpose} onChange={(e) => setPurpose(e.target.value)} />
-        </Field>
-        <Field label="Status">
-          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option>planned</option>
-            <option>in_progress</option>
-            <option>done</option>
-            <option>abandoned</option>
-          </Select>
         </Field>
         <Field label="Satisfaction (1–5)">
           <TextInput

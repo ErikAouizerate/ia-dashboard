@@ -8,13 +8,6 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { TextInput } from "../components/ui/Field";
 import { PageHeader } from "../components/ui/PageHeader";
 
-const statusTone: Record<string, "gray" | "green" | "blue" | "amber" | "red"> = {
-  planned: "gray",
-  in_progress: "blue",
-  done: "green",
-  abandoned: "red",
-};
-
 export function FeaturesView() {
   const dispatch = useDispatch();
   const { items, loading, error } = useSelector((s: RootState) => s.features);
@@ -51,10 +44,10 @@ export function FeaturesView() {
               <Card className="p-4 transition hover:border-gray-300 hover:shadow">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-semibold text-gray-900">{f.name}</span>
-                  <Badge tone={statusTone[f.status] ?? "gray"}>{f.status}</Badge>
+                  <Badge tone="blue">{f.projectName}</Badge>
                 </div>
                 <div className="mt-1 text-sm text-gray-600">
-                  {f.project} · {f.sessionCount} sessions
+                  {f.sessionCount} sessions · {f.demandes?.length ?? 0} demandes
                 </div>
                 <div className="mt-1 text-sm text-gray-700">
                   {Number(f.totalCost ?? 0).toFixed(2)} € · {f.totalTokensInput} /{" "}

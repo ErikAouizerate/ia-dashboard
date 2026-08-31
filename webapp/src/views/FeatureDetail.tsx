@@ -45,7 +45,7 @@ export function FeatureDetail() {
       <Link to="/features" className="text-sm text-blue-600 hover:underline">
         ← Back
       </Link>
-      <PageHeader title={current.name} subtitle={`${current.project} · ${current.status}`} />
+      <PageHeader title={current.name} subtitle={current.projectName} />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card className="p-3">
           <div className="text-xs uppercase text-gray-500">Total cost</div>
@@ -69,6 +69,43 @@ export function FeatureDetail() {
           <b>Purpose:</b> {current.purpose}
         </p>
       )}
+      {current.demandes?.length > 0 && (
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">Demandes</h3>
+          <ul className="mt-1 space-y-1 text-sm text-gray-700">
+            {current.demandes.map((d: any, i: number) => (
+              <li key={i}>
+                <b>{d.label}</b>
+                {d.description ? ` — ${d.description}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {current.enjeux?.length > 0 && (
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">Enjeux</h3>
+          <ul className="mt-1 space-y-1 text-sm text-gray-700">
+            {current.enjeux.map((e: any, i: number) => (
+              <li key={i}>
+                <b>{e.label}</b>
+                {e.description ? ` — ${e.description}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="mb-4">
+        <Button
+          variant="secondary"
+          onClick={async () => {
+            await api.reanalyzeFeature(current.id);
+            reload();
+          }}
+        >
+          Re-synthétiser
+        </Button>
+      </div>
       {current.satisfaction && (
         <p className="mb-4 text-sm text-gray-700">
           <b>Satisfaction:</b> ★{current.satisfaction}
