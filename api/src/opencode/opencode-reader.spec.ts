@@ -284,8 +284,10 @@ describe("OpenCodeReader", () => {
   });
 
   it("filters sessions by a directories list", () => {
-    const page = reader.listSessions({ directories: ["/home/user/gateway"] });
-    expect(page.total).toBe(2);
+    const page = reader.listSessions({ directories: ["/home/user/other"] });
+    expect(page.total).toBe(0);
+    const gateways = reader.listSessions({ directories: ["/home/user/gateway"] });
+    expect(gateways.total).toBe(2);
   });
 
   it("filters sessions to parents only", () => {
@@ -348,9 +350,15 @@ describe("OpenCodeReader", () => {
 
     it("filters sessions by multiple directories", () => {
       const page = reader.listSessions({
+        directories: ["/home/user/api"],
+      });
+      // discriminatif : api a 2 sessions sur 6 au total ; aucun id gateway
+      expect(page.total).toBe(2);
+      expect(page.items.map((s) => s.id).sort()).toEqual(["a1", "a2"]);
+      const both = reader.listSessions({
         directories: ["/home/user/gateway", "/home/user/api"],
       });
-      expect(page.total).toBe(6); // gateway: g1, g1-sub, g2, g3 ; api: a1, a2
+      expect(both.total).toBe(6);
     });
 
     it("computes processing time from part intervals, excluding user pauses", () => {
