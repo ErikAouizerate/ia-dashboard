@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { SessionRow } from "../store/sessions";
+import { api } from "../api/client";
 import { SessionActions } from "./SessionActions";
 import { BulkLinkModal } from "./BulkLinkModal";
+import { AnalysisBadge } from "../components/ui/AnalysisBadge";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -27,7 +29,8 @@ function Filters({
   const dispatch = useDispatch();
   const [project, setProject] = useState("");
   const [model, setModel] = useState("");
-  const [annotated, setAnnotated] = useState("");
+  const [analysed, setAnalysed] = useState("");
+  const [hideSubagents, setHideSubagents] = useState(true);
 
   const apply = (f: Record<string, string>) => {
     dispatch({
@@ -42,7 +45,8 @@ function Filters({
   const reset = () => {
     setProject("");
     setModel("");
-    setAnnotated("");
+    setAnalysed("");
+    setHideSubagents(true);
     apply({});
   };
 
@@ -75,15 +79,35 @@ function Filters({
         </Select>
         <Select
           className="w-44"
-          value={annotated}
-          onChange={(e) => setAnnotated(e.target.value)}
+          value={analysed}
+          onChange={(e) => setAnalysed(e.target.value)}
         >
-          <option value="">Any status</option>
-          <option value="yes">Annotated</option>
-          <option value="no">Not annotated</option>
+          <option value="">Any analysis</option>
+          <option value="yes">Analysée</option>
+          <option value="no">Non analysée</option>
+          <option value="pending">En attente</option>
+          <option value="error">Erreur</option>
         </Select>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={hideSubagents}
+            onChange={(e) => setHideSubagents(e.target.checked)}
+          />
+          Cacher subagents
+        </label>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={() => apply({ projectId: project, model, annotated })}>
+          <Button
+            variant="primary"
+            onClick={() =>
+              apply({
+                projectId: project,
+                model,
+                analysed,
+                parentOnly: hideSubagents ? "true" : "",
+              })
+            }
+          >
             Apply
           </Button>
           <Button onClick={reset}>Reset</Button>
@@ -136,6 +160,11 @@ export function SessionsView() {
         filters,
       },
     });
+
+  const runAnalysis = async (s: SessionRow) => {
+    await api.runAnalysis(s.id);
+    reload();
+  };
 
   return (
     <div>
@@ -191,11 +220,23 @@ export function SessionsView() {
                 <td className="px-3 py-2 text-right tabular-nums">
                   {s.tokensInput} / {s.tokensOutput}
                 </td>
-                <td className="px-3 py-2">{badgeFor(s)}</td>
-                <td className="px-3 py-2 text-right">
-                  <Button variant="ghost" onClick={() => setSingle(s)}>
-                    annotate / link
-                  </Button>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-1">
+                    <AnalysisBadge status={s.analysedStatus} />
+                    {s.annotated && badgeFor(s)}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  <div className="flex justify-end gap-1">
+                    {s.analysedStatus !== "done" && !s.isSubagent && (
+                      <Button variant="ghost" onClick={() => runAnalysis(s)}>
+                        analyser
+                      </Button>
+                    )}
+                    <Button variant="ghost" onClick={() => setSingle(s)}>
+                      annotate / link
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
