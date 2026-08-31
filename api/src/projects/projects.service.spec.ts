@@ -25,6 +25,19 @@ const readerMock = {
       sessions: 2,
     },
   ]),
+  timeByDirectory: jest.fn().mockReturnValue([
+    { directory: "/home/user/gateway", durationMs: 7200000 },
+  ]),
+  aggregateByDirectoryAndModel: jest.fn().mockReturnValue([
+    {
+      directory: "/home/user/gateway",
+      model: "deepseek-v4-flash",
+      totalCost: 5,
+      tokensInput: 10,
+      tokensOutput: 20,
+      sessions: 2,
+    },
+  ]),
 };
 
 const mkChain = (...results: unknown[]) => {
@@ -76,6 +89,7 @@ describe("ProjectsService", () => {
     expect(rows[0].name).toBe("gateway");
     expect(rows[0].totalCost).toBe(5);
     expect(rows[0].sessionCount).toBe(2);
+    expect(rows[0].durationMs).toBe(7200000);
   });
 
   it("findOne returns features and proposals", async () => {
@@ -99,6 +113,9 @@ describe("ProjectsService", () => {
     expect(detail.features).toEqual([{ id: "f1", name: "Auth" }]);
     expect(detail.proposals[0].status).toBe("pending");
     expect(detail.byModel[0].model).toBe("deepseek-v4-flash");
+    expect(detail.byModel).toEqual([
+      { model: "deepseek-v4-flash", totalCost: 5, sessions: 2 },
+    ]);
     expect(detail.ungroupedSessions).toBe(0); // 2 sessions - 1 linked - 1 proposed = 0
   });
 });

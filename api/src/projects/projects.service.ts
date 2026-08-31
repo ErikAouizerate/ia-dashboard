@@ -55,6 +55,7 @@ export class ProjectsService {
     const rows = await this.db.select().from(projects).orderBy(desc(projects.lastSeen));
     const agg = this.reader.aggregateByDirectory({});
     const byDir = new Map(agg.map((a) => [a.directory, a]));
+    const times = new Map(this.reader.timeByDirectory({}).map((t) => [t.directory, t.durationMs]));
     return rows.map((p) => {
       const a: DirectoryAggregate | undefined = byDir.get(p.directory);
       return {
@@ -68,6 +69,7 @@ export class ProjectsService {
         totalCost: a?.totalCost ?? 0,
         tokensInput: a?.tokensInput ?? 0,
         tokensOutput: a?.tokensOutput ?? 0,
+        durationMs: times.get(p.directory) ?? 0,
       };
     });
   }
@@ -115,7 +117,10 @@ export class ProjectsService {
       tokensInput: a?.tokensInput ?? 0,
       tokensOutput: a?.tokensOutput ?? 0,
       ungroupedSessions: Math.max(0, (a?.sessions ?? 0) - linkedCount - proposedCount),
-      byModel: this.reader.aggregateByModel({}),
+      byModel: this.reader
+        .aggregateByDirectoryAndModel({})
+        .filter((m) => m.directory === row.directory)
+        .map(({ model, totalCost, sessions }) => ({ model, totalCost, sessions })),
       features: featRows,
       proposals: propRows,
     };
