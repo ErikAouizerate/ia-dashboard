@@ -337,17 +337,58 @@ export class OpenCodeReader {
     const db = this.requireDb();
     const rows = db
       .prepare(
-        `SELECT directory, SUM(time_updated - time_created) AS durationMs
-         FROM session
-         WHERE time_created >= @from
-           AND directory IS NOT NULL AND directory != ''
-           AND parent_id IS NULL
-           AND time_updated > time_created
-         GROUP BY directory`,
+        `SELECT s.directory AS directory, m.session_id AS session_id,
+                p.time_created AS t0, p.time_updated AS t1
+         FROM part p
+         JOIN message m ON m.id = p.message_id
+         JOIN session s ON s.id = m.session_id
+         WHERE s.parent_id IS NULL
+           AND s.time_created >= @from
+           AND p.time_updated > p.time_created
+         ORDER BY s.directory, m.session_id, p.time_created`,
       )
-      .all({ from }) as { directory: string; durationMs: number }[];
-    return rows
-      .map((r) => ({ directory: r.directory, durationMs: r.durationMs }))
+      .all({ from }) as {
+      directory: string;
+      session_id: string;
+      t0: number;
+      t1: number;
+    }[];
+
+    const PART_CAP_MS = 2 * 60 * 60 * 1000;
+    const byDir = new Map<string, number>();
+    let curDir = "";
+    let curSession = "";
+    let spanStart = 0;
+    let spanEnd = 0;
+    let sessionTotal = 0;
+    const flushSession = () => {
+      if (curSession) {
+        sessionTotal += spanEnd - spanStart;
+        byDir.set(curDir, (byDir.get(curDir) ?? 0) + sessionTotal);
+      }
+    };
+    for (const r of rows) {
+      const t0 = r.t0;
+      const t1 = Math.min(r.t1, r.t0 + PART_CAP_MS);
+      if (r.session_id !== curSession) {
+        flushSession();
+        curDir = r.directory;
+        curSession = r.session_id;
+        sessionTotal = 0;
+        spanStart = t0;
+        spanEnd = t1;
+      } else if (t0 > spanEnd) {
+        sessionTotal += spanEnd - spanStart;
+        spanStart = t0;
+        spanEnd = t1;
+      } else if (t1 > spanEnd) {
+        spanEnd = t1;
+      }
+    }
+    flushSession();
+
+    return [...byDir.entries()]
+      .map(([directory, durationMs]) => ({ directory, durationMs }))
       .sort((a, b) => b.durationMs - a.durationMs);
   }
 
