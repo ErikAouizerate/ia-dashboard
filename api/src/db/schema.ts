@@ -6,27 +6,96 @@ import {
   smallint,
   real,
   timestamp,
+  boolean,
   uniqueIndex,
+  jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
-export const featureStatus = pgEnum("feature_status", [
-  "planned",
-  "in_progress",
+export const analysisStatus = pgEnum("analysis_status", [
+  "pending",
+  "analyzing",
   "done",
-  "abandoned",
+  "error",
 ]);
+
+export const proposalStatus = pgEnum("proposal_status", [
+  "pending",
+  "accepted",
+  "dismissed",
+  "stale",
+]);
+
+export interface Demande {
+  label: string;
+  description: string;
+}
+
+export interface Enjeu {
+  label: string;
+  description: string;
+}
+
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  directory: text("directory").notNull().unique(),
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull(),
+  stale: boolean("stale").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessionAnalyses = pgTable("session_analyses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sessionId: text("session_id").notNull().unique(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title"),
+  demandes: jsonb("demandes").$type<Demande[]>().notNull().default([]),
+  enjeux: jsonb("enjeux").$type<Enjeu[]>().notNull().default([]),
+  summary: text("summary"),
+  model: text("model"),
+  status: analysisStatus("status").notNull().default("pending"),
+  error: text("error"),
+  errorCount: integer("error_count").notNull().default(0),
+  analyzedAt: timestamp("analyzed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const featureProposals = pgTable("feature_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  purpose: text("purpose"),
+  sessionIds: jsonb("session_ids").$type<string[]>().notNull().default([]),
+  demandes: jsonb("demandes").$type<Demande[]>().notNull().default([]),
+  enjeux: jsonb("enjeux").$type<Enjeu[]>().notNull().default([]),
+  rationale: text("rationale"),
+  status: proposalStatus("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const features = pgTable("features", {
   id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  project: text("project").notNull(),
   purpose: text("purpose"),
-  status: featureStatus("status").notNull().default("planned"),
   satisfaction: smallint("satisfaction"),
   comment: text("comment"),
   tags: text("tags").array().notNull().default([]),
   timeSpentMin: integer("time_spent_min"),
+  demandes: jsonb("demandes").$type<Demande[]>().notNull().default([]),
+  enjeux: jsonb("enjeux").$type<Enjeu[]>().notNull().default([]),
+  proposalId: uuid("proposal_id").references(() => featureProposals.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
