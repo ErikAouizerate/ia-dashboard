@@ -67,6 +67,9 @@ export class SessionsService {
     });
     if (filters.analysed === "yes") items = items.filter((i) => i.analysedStatus === "done");
     else if (filters.analysed === "no") items = items.filter((i) => i.analysedStatus === "none");
+    else if (filters.analysed === "pending")
+      items = items.filter((i) => i.analysedStatus === "pending" || i.analysedStatus === "analyzing");
+    else if (filters.analysed === "error") items = items.filter((i) => i.analysedStatus === "error");
     return { ...page, total: items.length, items };
   }
 

@@ -5,7 +5,7 @@ import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
-import { features, featureSessions, projects } from "../db/schema";
+import { features, featureSessions, projects, sessionAnalyses } from "../db/schema";
 import { CreateFeatureDto, UpdateFeatureDto, createFeatureSchema, updateFeatureSchema } from "./dto";
 
 @Injectable()
@@ -239,6 +239,17 @@ export class FeaturesService {
       .where(eq(featureSessions.featureId, id));
     const parentIds = analyses.map((s) => s.sessionId);
     if (parentIds.length === 0) return feat;
+    const stored = await this.db
+      .select()
+      .from(sessionAnalyses)
+      .where(inArray(sessionAnalyses.sessionId, parentIds));
+    const payload = stored.map((a) => ({
+      session_id: a.sessionId,
+      title: a.title ?? "",
+      summary: a.summary ?? "",
+      demandes: a.demandes,
+      enjeux: a.enjeux,
+    }));
     const result = await this.llm.chatCompletion<{
       demandes: { label: string; description: string }[];
       enjeux: { label: string; description: string }[];
@@ -246,9 +257,12 @@ export class FeaturesService {
       {
         role: "system",
         content:
-          "Synthétise les demandes et enjeux de cette feature. Réponds UNIQUEMENT en JSON : {\"demandes\":[{label,description}],\"enjeux\":[{label,description}]}.",
+          "Synthétise les demandes et enjeux de cette feature à partir des résumés de sessions. Réponds UNIQUEMENT en JSON : {\"demandes\":[{label,description}],\"enjeux\":[{label,description}]}.",
       },
-      { role: "user", content: `Feature: ${feat.name}\nSessions:\n${JSON.stringify(parentIds)}` },
+      {
+        role: "user",
+        content: `Feature: ${feat.name}\nSessions:\n${JSON.stringify(payload)}`,
+      },
     ]);
     await this.db
       .update(features)

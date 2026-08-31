@@ -52,6 +52,11 @@ export class LlmClient {
         }
       } catch (e) {
         lastError = e;
+        const name = (e as { name?: string } | null)?.name;
+        transient =
+          name === "AbortError" ||
+          e instanceof TypeError ||
+          (e instanceof Error && /fetch|network|ECONN|ENOTFOUND/i.test(e.message));
       } finally {
         clearTimeout(timer);
       }

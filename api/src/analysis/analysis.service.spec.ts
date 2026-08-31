@@ -50,6 +50,11 @@ const mkDb = (...results: unknown[]) => {
 };
 
 describe("AnalysisService", () => {
+  beforeEach(() => {
+    llmMock.chatCompletion.mockClear();
+    readerMock.getSession.mockReturnValue({ id: "s1", title: "Add auth", directory: "/p" });
+  });
+
   it("analyzeSession calls the LLM with the session input and persists done", async () => {
     readerMock.getSession.mockReturnValue({ id: "s1", title: "Add auth", directory: "/p" });
     const db = mkDb(
@@ -86,5 +91,45 @@ describe("AnalysisService", () => {
     const db = mkDb([], [], []);
     const svc = new AnalysisService(db as any, readerMock as any, llmMock as any);
     await expect(svc.tick()).resolves.toBeUndefined();
+  });
+
+  it("serializes concurrent analyzeSession calls on the same session", async () => {
+    readerMock.getSession.mockReturnValue({ id: "s1", title: "Add auth", directory: "/p" });
+    const db = mkDb(
+      [], // projectIdForDirectory: select projects -> none
+      [{ id: "p1" }], // projectIdForDirectory: insert projects returning
+      [], // existing sessionAnalyses select -> none (first call)
+      [], // insert pending (awaited, ignored)
+      [], // update analyzing (awaited, ignored)
+      [{ id: "a1", summary: "Added OAuth", status: "done" }], // update done returning
+    );
+    const svc = new AnalysisService(db as any, readerMock as any, llmMock as any);
+    const [a, b] = await Promise.all([
+      svc.analyzeSession("s1"),
+      svc.analyzeSession("s1"),
+    ]);
+    expect(a.summary).toBe("Added OAuth");
+    expect(b.summary).toBe("Added OAuth");
+    expect(llmMock.chatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not re-analyze a session already done", async () => {
+    readerMock.getSession.mockReturnValue({ id: "s1", title: "Add auth", directory: "/p" });
+    const db = mkDb(
+      [], // projectIdForDirectory: select projects -> none
+      [{ id: "p1" }], // projectIdForDirectory: insert projects returning
+      [{ id: "a1", sessionId: "s1", status: "done", summary: "already" }], // existing select -> done
+    );
+    const svc = new AnalysisService(db as any, readerMock as any, llmMock as any);
+    const out = await svc.analyzeSession("s1");
+    expect(out.summary).toBe("already");
+    expect(llmMock.chatCompletion).not.toHaveBeenCalled();
+  });
+
+  it("recoverStuck resets analyzing rows to pending", async () => {
+    const db = mkDb([{ id: "a1", status: "pending" }]);
+    const svc = new AnalysisService(db as any, readerMock as any, llmMock as any);
+    const n = await svc.recoverStuck();
+    expect(n).toBe(1);
   });
 });

@@ -21,6 +21,8 @@ function truncate(text: string, max: number): string {
 
 @Injectable()
 export class AnalysisService {
+  private inflight = new Map<string, Promise<any>>();
+
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
     @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
@@ -51,13 +53,32 @@ export class AnalysisService {
   async analyzeSession(sessionId: string) {
     const input = this.reader.getSessionAnalysisInput(sessionId);
     if (!input) throw new NotFoundException("Session not found in OpenCode DB");
+    const inFlight = this.inflight.get(sessionId);
+    if (inFlight) return inFlight;
+    const promise = this.doAnalyze(sessionId, input);
+    this.inflight.set(sessionId, promise);
+    try {
+      return await promise;
+    } finally {
+      this.inflight.delete(sessionId);
+    }
+  }
+
+  private async doAnalyze(
+    sessionId: string,
+    input: NonNullable<ReturnType<OpenCodeReader["getSessionAnalysisInput"]>>,
+  ) {
     const session = this.reader.getSession(sessionId);
+    if (!session || session.isSubagent) {
+      throw new NotFoundException("Session not found or is a subagent");
+    }
     const projectId = await this.projectIdForDirectory(session?.directory ?? "");
     const existing = await this.db
       .select()
       .from(sessionAnalyses)
       .where(eq(sessionAnalyses.sessionId, sessionId))
       .then((r) => r[0]);
+    if (existing?.status === "done") return existing;
     if (!existing) {
       await this.db.insert(sessionAnalyses).values({
         sessionId,
@@ -65,7 +86,7 @@ export class AnalysisService {
         title: input.title,
         model: input.model,
         status: "pending",
-      });
+      }).onConflictDoNothing();
     }
     const userText = input.userMessages.map((m) => `- ${truncate(m, 2000)}`).join("\n");
     const todoText = input.todos
@@ -148,6 +169,15 @@ export class AnalysisService {
       queued++;
     }
     return queued;
+  }
+
+  async recoverStuck(): Promise<number> {
+    const rows = await this.db
+      .update(sessionAnalyses)
+      .set({ status: "pending", updatedAt: new Date() })
+      .where(eq(sessionAnalyses.status, "analyzing"))
+      .returning();
+    return rows.length;
   }
 
   async tick(): Promise<void> {

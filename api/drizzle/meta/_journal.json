@@ -8,6 +8,13 @@
       "when": 1788166464248,
       "tag": "0000_watery_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788170637537,
+      "tag": "0001_curious_blob",
+      "breakpoints": true
     }
   ]
 }

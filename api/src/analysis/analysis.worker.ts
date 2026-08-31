@@ -11,6 +11,14 @@ export class AnalysisWorker implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     if (process.env.ANALYSIS_DISABLED === "true") return;
     try {
+      const recovered = await this.svc.recoverStuck();
+      if (recovered > 0) {
+        this.logger.log(`Recovered ${recovered} stuck session analysis(es)`);
+      }
+    } catch (e) {
+      this.logger.warn(`Analysis recovery failed: ${String(e)}`);
+    }
+    try {
       const queued = await this.svc.queueBackfill(2);
       this.logger.log(`Analysis backfill queued ${queued} session(s)`);
     } catch (e) {

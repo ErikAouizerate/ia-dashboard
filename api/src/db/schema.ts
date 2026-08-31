@@ -38,7 +38,7 @@ export interface Enjeu {
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull(),
   directory: text("directory").notNull().unique(),
   firstSeen: timestamp("first_seen", { withTimezone: true }).notNull(),
   lastSeen: timestamp("last_seen", { withTimezone: true }).notNull(),
