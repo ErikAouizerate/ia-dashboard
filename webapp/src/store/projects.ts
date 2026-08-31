@@ -2,6 +2,7 @@ export interface ProjectRow {
   id: string;
   name: string;
   directory: string;
+  directories?: string[];
   stale: boolean;
   firstSeen: string;
   lastSeen: string;

@@ -48,4 +48,43 @@ describe("ProjectsView", () => {
     expect(html).toContain("2 sessions");
     expect(html).toContain("1h 30m");
   });
+
+  it("renders grouped projects with their member directories", () => {
+    const store = configureStore({
+      reducer: { projects: projectsReducer },
+      middleware: (gDM) => gDM({ thunk: false, serializableCheck: false }),
+      preloadedState: {
+        projects: {
+          items: [
+            {
+              id: "nominal:gateway",
+              name: "gateway",
+              directory: "/home/user/gateway",
+              directories: ["/home/user/gateway", "/home/user/gateway_v2"],
+              stale: false,
+              firstSeen: "2026-08-01T00:00:00.000Z",
+              lastSeen: "2026-08-31T00:00:00.000Z",
+              sessionCount: 3,
+              totalCost: 8,
+              tokensInput: 160,
+              tokensOutput: 320,
+              durationMs: 9000000,
+            },
+          ],
+          current: null,
+          loading: false,
+          error: null,
+        },
+      },
+    });
+    const html = renderToStaticMarkup(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={["/projects"]}>
+          <ProjectsView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("/home/user/gateway");
+    expect(html).toContain("/home/user/gateway_v2");
+  });
 });

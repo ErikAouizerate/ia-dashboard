@@ -34,6 +34,9 @@ export function ProjectsView() {
                 </div>
                 <div className="mt-1 truncate text-sm text-gray-500" title={p.directory}>
                   {p.directory}
+                  {p.directories && p.directories.length > 1 && (
+                    <span> · {p.directories.slice(1).join(" · ")}</span>
+                  )}
                 </div>
                 <div className="mt-1 text-sm text-gray-700">
                   {p.sessionCount} sessions · {p.totalCost.toFixed(2)} € ·{" "}
