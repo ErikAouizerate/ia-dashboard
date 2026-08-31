@@ -31,6 +31,7 @@ export class DashboardService {
     return {
       periodDays,
       ...all,
+      sessionCount: all.sessions,
       analysedCount,
       featureCount,
       byProject: this.reader

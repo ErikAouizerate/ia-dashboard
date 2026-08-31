@@ -38,6 +38,7 @@ describe("DashboardService", () => {
     const svc = new DashboardService(readerMock as any, db as any);
     const out = await svc.summary(7);
     expect(out.totalCost).toBe(10);
+    expect(out.sessionCount).toBe(4);
     expect(out.analysedCount).toBe(3);
     expect(out.featureCount).toBe(5);
     expect(out.byProject[0].name).toBe("gateway");
