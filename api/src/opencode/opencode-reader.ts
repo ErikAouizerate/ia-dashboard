@@ -6,6 +6,7 @@ import {
   DayAggregate,
   DirectoryAggregate,
   DirectoryModelAggregate,
+  DirectoryTimeAggregate,
   ModelAggregate,
   OpenCodeProject,
   OpenCodeSession,
@@ -330,6 +331,24 @@ export class OpenCodeReader {
       }
     }
     return out.sort((a, b) => b.totalCost - a.totalCost);
+  }
+
+  timeByDirectory({ from = 0 }: { from?: number } = {}): DirectoryTimeAggregate[] {
+    const db = this.requireDb();
+    const rows = db
+      .prepare(
+        `SELECT directory, SUM(time_updated - time_created) AS durationMs
+         FROM session
+         WHERE time_created >= @from
+           AND directory IS NOT NULL AND directory != ''
+           AND parent_id IS NULL
+           AND time_updated > time_created
+         GROUP BY directory`,
+      )
+      .all({ from }) as { directory: string; durationMs: number }[];
+    return rows
+      .map((r) => ({ directory: r.directory, durationMs: r.durationMs }))
+      .sort((a, b) => b.durationMs - a.durationMs);
   }
 
   aggregateByModel({ from = 0 }: { from?: number } = {}): ModelAggregate[] {

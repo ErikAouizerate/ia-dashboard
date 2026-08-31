@@ -268,5 +268,15 @@ describe("OpenCodeReader", () => {
       expect(claude?.sessions).toBe(1);
       expect(rows.filter((r) => r.directory === "/home/user/api").length).toBe(2);
     });
+
+    it("sums parent session duration per directory, excluding subagents and non-positive", () => {
+      const rows = reader.timeByDirectory({});
+      const gateway = rows.find((r) => r.directory === "/home/user/gateway");
+      // g1 (5000-1000=4000) + g2 (3000-2000=1000) + g3 (4000-3000=1000) ; subagent g1-sub exclu
+      expect(gateway?.durationMs).toBe(6000);
+      const api = rows.find((r) => r.directory === "/home/user/api");
+      // a1 (2000-1000=1000) ; a2 durée négative exclue
+      expect(api?.durationMs).toBe(1000);
+    });
   });
 });

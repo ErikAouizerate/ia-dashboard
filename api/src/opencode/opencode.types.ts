@@ -80,6 +80,11 @@ export interface DirectoryModelAggregate extends SessionAggregate {
   model: string;
 }
 
+export interface DirectoryTimeAggregate {
+  directory: string;
+  durationMs: number;
+}
+
 export interface ModelAggregate extends SessionAggregate {
   model: string;
 }
