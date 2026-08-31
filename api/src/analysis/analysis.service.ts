@@ -1,11 +1,11 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
-import { projects, sessionAnalyses } from "../db/schema";
+import { featureProposals, features, featureSessions, projects, sessionAnalyses } from "../db/schema";
 
 const MAX_ERRORS = 3;
 const ANALYSIS_SYSTEM_PROMPT =
@@ -170,7 +170,159 @@ export class AnalysisService {
     return rows[0] ?? null;
   }
 
-  async listProposals(_projectId?: string): Promise<unknown[]> {
-    return [];
+  async listProposals(projectId?: string) {
+    if (projectId) {
+      return this.db
+        .select()
+        .from(featureProposals)
+        .where(eq(featureProposals.projectId, projectId))
+        .orderBy(featureProposals.createdAt);
+    }
+    return this.db.select().from(featureProposals).orderBy(featureProposals.createdAt);
+  }
+
+  private async linkFeatureSessions(featureId: string, sessionIds: string[]): Promise<void> {
+    for (const sessionId of sessionIds) {
+      const s = this.reader.getSession(sessionId);
+      if (!s) continue;
+      const allIds = [sessionId, ...this.reader.getSubagentIds(sessionId)];
+      for (const sid of allIds) {
+        const sub = this.reader.getSession(sid);
+        if (!sub) continue;
+        const exists = await this.db
+          .select()
+          .from(featureSessions)
+          .where(eq(featureSessions.sessionId, sid))
+          .then((r) => r[0]);
+        if (exists) continue;
+        await this.db.insert(featureSessions).values({
+          featureId,
+          sessionId: sub.id,
+          title: sub.title,
+          model: sub.model,
+          agent: sub.agent,
+          cost: sub.cost,
+          tokensInput: sub.tokensInput,
+          tokensOutput: sub.tokensOutput,
+          tokensReasoning: sub.tokensReasoning,
+          tokensCacheRead: sub.tokensCacheRead,
+          tokensCacheWrite: sub.tokensCacheWrite,
+          timeCreated: new Date(sub.timeCreated),
+          timeUpdated: new Date(sub.timeUpdated),
+          summaryAdditions: sub.summaryAdditions,
+          summaryDeletions: sub.summaryDeletions,
+          summaryFiles: sub.summaryFiles,
+        });
+      }
+    }
+  }
+
+  private async analyzedSessionsForProject(projectId: string) {
+    const analyses = await this.db
+      .select()
+      .from(sessionAnalyses)
+      .where(eq(sessionAnalyses.projectId, projectId));
+    const done = analyses.filter((a) => a.status === "done");
+    const pendingProposals = await this.db
+      .select()
+      .from(featureProposals)
+      .where(and(eq(featureProposals.projectId, projectId), eq(featureProposals.status, "pending")));
+    const proposed = new Set(pendingProposals.flatMap((p) => p.sessionIds));
+    const linked = new Set(
+      (
+        await this.db.select({ sessionId: featureSessions.sessionId }).from(featureSessions)
+      ).map((r) => r.sessionId),
+    );
+    return done.filter((a) => !proposed.has(a.sessionId) && !linked.has(a.sessionId));
+  }
+
+  async clusterProject(projectId: string): Promise<number> {
+    const candidates = await this.analyzedSessionsForProject(projectId);
+    if (candidates.length < 2) return 0;
+    const items = candidates
+      .map((a) => ({
+        session_id: a.sessionId,
+        title: a.title ?? "",
+        date: a.analyzedAt?.toISOString() ?? "",
+        summary: a.summary ?? "",
+        demandes: a.demandes,
+      }))
+      .sort((x, y) => (x.date < y.date ? -1 : 1));
+    const prompt =
+      "Regroupe ces sessions d'un même projet en features cohérentes. " +
+      "Proximité temporelle ET ressemblance sémantique comptent. " +
+      'Réponds UNIQUEMENT en JSON : {"proposals":[{name, purpose, session_ids[], rationale, demandes:[{label,description}], enjeux:[{label,description}]}]}.\n' +
+      "Sessions:\n" +
+      JSON.stringify(items);
+    const result = await this.llm.chatCompletion<{
+      proposals: {
+        name: string;
+        purpose: string;
+        session_ids: string[];
+        rationale: string;
+        demandes: { label: string; description: string }[];
+        enjeux: { label: string; description: string }[];
+      }[];
+    }>([
+      {
+        role: "system",
+        content: "Tu es un outil de regroupement de sessions en features.",
+      },
+      { role: "user", content: prompt },
+    ]);
+    await this.db
+      .update(featureProposals)
+      .set({ status: "stale", updatedAt: new Date() })
+      .where(and(eq(featureProposals.projectId, projectId), eq(featureProposals.status, "pending")));
+    let created = 0;
+    for (const p of result.proposals ?? []) {
+      await this.db.insert(featureProposals).values({
+        projectId,
+        name: p.name,
+        purpose: p.purpose,
+        sessionIds: p.session_ids ?? [],
+        demandes: p.demandes ?? [],
+        enjeux: p.enjeux ?? [],
+        rationale: p.rationale,
+        status: "pending",
+      });
+      created++;
+    }
+    return created;
+  }
+
+  async acceptProposal(id: string, overrides?: { name?: string; purpose?: string }) {
+    const prop = await this.db
+      .select()
+      .from(featureProposals)
+      .where(eq(featureProposals.id, id))
+      .then((r) => r[0]);
+    if (!prop) throw new NotFoundException("Proposal not found");
+    if (prop.status !== "pending") throw new NotFoundException("Proposal not pending");
+    const feat = await this.db
+      .insert(features)
+      .values({
+        projectId: prop.projectId,
+        name: overrides?.name?.trim() || prop.name,
+        purpose: overrides?.purpose?.trim() || prop.purpose,
+        demandes: prop.demandes,
+        enjeux: prop.enjeux,
+        proposalId: prop.id,
+      })
+      .returning();
+    await this.linkFeatureSessions(feat[0].id, prop.sessionIds);
+    await this.db
+      .update(featureProposals)
+      .set({ status: "accepted", updatedAt: new Date() })
+      .where(eq(featureProposals.id, id));
+    return feat[0];
+  }
+
+  async dismissProposal(id: string) {
+    await this.db
+      .update(featureProposals)
+      .set({ status: "dismissed", updatedAt: new Date() })
+      .where(eq(featureProposals.id, id));
+    return { ok: true };
   }
 }
