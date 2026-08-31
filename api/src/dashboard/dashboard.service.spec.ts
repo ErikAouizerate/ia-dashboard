@@ -172,4 +172,54 @@ describe("DashboardService", () => {
       { directory: "/p/gateway", name: "gateway", durationMs: 5400000, id: "nominal:gateway" },
     ]);
   });
+
+  it("summary keeps unsynced directories visible via the fallback", async () => {
+    const readerMock3 = {
+      ...readerMock,
+      aggregateByDirectory: jest.fn().mockReturnValue([
+        { directory: "/p/unsynced", name: "unsynced", totalCost: 2, sessions: 1 },
+      ]),
+      aggregateByDirectoryAndModel: jest.fn().mockReturnValue([
+        {
+          directory: "/p/unsynced",
+          model: "deepseek-v4-flash",
+          totalCost: 2,
+          tokensInput: 1,
+          tokensOutput: 1,
+          sessions: 1,
+        },
+      ]),
+      timeByDirectory: jest.fn().mockReturnValue([
+        { directory: "/p/unsynced", durationMs: 60000 },
+      ]),
+    };
+    const db = mkDb(
+      [{ c: 0 }],
+      [{ c: 0 }],
+      [], // projects : aucun répertoire synchronisé
+    );
+    const svc = new DashboardService(readerMock3 as any, db as any);
+    const out = await svc.summary(7);
+    expect(out.byProject).toHaveLength(1);
+    expect(out.byProject[0]).toMatchObject({
+      id: "nominal:unsynced",
+      name: "unsynced",
+      directory: "/p/unsynced",
+      totalCost: 2,
+      sessions: 1,
+    });
+    expect(out.byProject[0].models).toEqual([
+      {
+        model: "deepseek-v4-flash",
+        totalCost: 2,
+        tokensInput: 1,
+        tokensOutput: 1,
+        sessions: 1,
+        share: 1,
+      },
+    ]);
+    expect(out.timeByProject).toEqual([
+      { directory: "/p/unsynced", name: "unsynced", durationMs: 60000, id: "nominal:unsynced" },
+    ]);
+  });
 });
