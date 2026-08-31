@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { DashboardView } from "./views/DashboardView";
 import { SessionsView } from "./views/SessionsView";
 import { FeaturesView } from "./views/FeaturesView";
 import { FeatureDetail } from "./views/FeatureDetail";
@@ -15,6 +16,9 @@ export function App() {
         <aside className="w-52 shrink-0 border-r border-gray-200 bg-white">
           <div className="flex h-full flex-col gap-1 px-3 py-4">
             <div className="mb-3 px-3 text-lg font-semibold text-gray-900">ia-dashboard</div>
+            <NavLink to="/" className={navLinkClass} end>
+              Dashboard
+            </NavLink>
             <NavLink to="/sessions" className={navLinkClass}>
               Sessions
             </NavLink>
@@ -25,7 +29,7 @@ export function App() {
         </aside>
         <main className="min-w-0 flex-1 overflow-y-auto p-6">
           <Routes>
-            <Route path="/" element={<SessionsView />} />
+            <Route path="/" element={<DashboardView />} />
             <Route path="/sessions" element={<SessionsView />} />
             <Route path="/features" element={<FeaturesView />} />
             <Route path="/features/:id" element={<FeatureDetail />} />
