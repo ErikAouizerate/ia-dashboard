@@ -3081,7 +3081,7 @@ runAnalysis: (sessionId: string) =>
   apiFetch<any>(`/api/analysis/run`, { method: "POST", body: JSON.stringify({ sessionId }) }),
 runProjectClustering: (projectId: string) =>
   apiFetch<any>(`/api/analysis/run-project`, { method: "POST", body: JSON.stringify({ projectId }) }),
-sessionAnalysis: (id: string) => apiFetch<any>(`/api/sessions/${id}`),
+sessionAnalysis: (id: string) => apiFetch<any>(`/api/sessions/${id}/analysis`),
 reanalyzeFeature: (id: string) =>
   apiFetch<any>(`/api/features/${id}/reanalyze`, { method: "POST" }),
 ```

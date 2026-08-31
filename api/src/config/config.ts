@@ -11,6 +11,8 @@ export interface AppConfig {
   authPath: string;
 }
 
+export const APP_CONFIG = Symbol("APP_CONFIG");
+
 function readAuthKey(authPath: string): string {
   const env = process.env.OPENCODE_API_KEY;
   if (env) return env;
