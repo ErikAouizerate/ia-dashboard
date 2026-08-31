@@ -5,6 +5,7 @@ import { RootState } from "../store/store";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PageHeader } from "../components/ui/PageHeader";
+import { formatDuration } from "../lib/format";
 
 export function ProjectsView() {
   const dispatch = useDispatch();
@@ -36,7 +37,7 @@ export function ProjectsView() {
                 </div>
                 <div className="mt-1 text-sm text-gray-700">
                   {p.sessionCount} sessions · {p.totalCost.toFixed(2)} € ·{" "}
-                  {p.tokensInput.toLocaleString()} tok
+                  {p.tokensInput.toLocaleString()} tok · {formatDuration(p.durationMs)}
                 </div>
               </Card>
             </Link>
