@@ -7,6 +7,7 @@ import { SessionsModule } from "./sessions/sessions.module";
 import { FeaturesModule } from "./features/features.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { AnalysisModule } from "./analysis/analysis.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
 import { HealthModule } from "./health/health.module";
 
 @Module({
@@ -19,6 +20,7 @@ import { HealthModule } from "./health/health.module";
     FeaturesModule,
     ProjectsModule,
     AnalysisModule,
+    DashboardModule,
     HealthModule,
   ],
 })
