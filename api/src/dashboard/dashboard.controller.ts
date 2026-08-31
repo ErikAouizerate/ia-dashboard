@@ -7,7 +7,8 @@ export class DashboardController {
 
   @Get("summary")
   summary(@Query("periodDays") periodDays?: string) {
-    const days = periodDays ? Math.max(1, Number(periodDays)) : 7;
+    const raw = Number(periodDays);
+    const days = Number.isFinite(raw) ? Math.max(0, raw) : 7;
     return this.svc.summary(days);
   }
 }

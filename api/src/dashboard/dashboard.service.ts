@@ -16,7 +16,7 @@ export class DashboardService {
   ) {}
 
   async summary(periodDays = 7) {
-    const from = Date.now() - periodDays * 24 * 60 * 60 * 1000;
+    const from = periodDays > 0 ? Date.now() - periodDays * 24 * 60 * 60 * 1000 : 0;
     const all = this.reader.aggregateAll({ from });
     const [analysedCount, featureCount, projectRows] = await Promise.all([
       this.db

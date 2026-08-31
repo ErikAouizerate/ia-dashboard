@@ -222,4 +222,16 @@ describe("DashboardService", () => {
       { directory: "/p/unsynced", name: "unsynced", durationMs: 60000, id: "nominal:unsynced" },
     ]);
   });
+
+  it("summary with periodDays 0 aggregates everything (from=0)", async () => {
+    const db = mkDb([{ c: 0 }], [{ c: 0 }], []);
+    const svc = new DashboardService(readerMock as any, db as any);
+    const out = await svc.summary(0);
+    expect(out.periodDays).toBe(0);
+    expect(readerMock.aggregateAll).toHaveBeenCalledWith({ from: 0 });
+    expect(readerMock.aggregateByDirectory).toHaveBeenCalledWith({ from: 0 });
+    expect(readerMock.aggregateByModel).toHaveBeenCalledWith({ from: 0 });
+    expect(readerMock.aggregateByDay).toHaveBeenCalledWith({ from: 0 });
+    expect(readerMock.timeByDirectory).toHaveBeenCalledWith({ from: 0 });
+  });
 });
