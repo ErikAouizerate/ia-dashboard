@@ -37,6 +37,24 @@ const summary = {
       sessions: 2,
       tokensInput: 100,
       tokensOutput: 200,
+      models: [
+        {
+          model: "deepseek-v4-flash",
+          totalCost: 3,
+          tokensInput: 80,
+          tokensOutput: 120,
+          sessions: 1,
+          share: 0.5,
+        },
+        {
+          model: "claude-sonnet",
+          totalCost: 2,
+          tokensInput: 20,
+          tokensOutput: 80,
+          sessions: 1,
+          share: 0.5,
+        },
+      ],
     },
   ],
   byModel: [
@@ -49,6 +67,9 @@ const summary = {
     },
   ],
   byDay: [{ day: "2026-08-27", totalCost: 12.34, sessions: 42 }],
+  timeByProject: [
+    { directory: "/p/gateway", name: "gateway", durationMs: 5400000, id: "p1" },
+  ],
 };
 
 describe("DashboardView", () => {
@@ -87,5 +108,20 @@ describe("DashboardView", () => {
     expect(html).toContain("Tokens par modèle");
     expect(html).toContain("deepseek-v4-flash");
     expect(html).toContain("3,000");
+  });
+
+  it("renders cost per project stacked by model, tokens per project and time per project", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore(summary)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("Coût par projet");
+    expect(html).toContain("claude-sonnet"); // segment de modèle dans la barre coût
+    expect(html).toContain("Tokens par projet");
+    expect(html).toContain("Temps passé par projet");
+    expect(html).toContain("1h 30m");
   });
 });

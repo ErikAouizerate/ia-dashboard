@@ -15,7 +15,7 @@ export function BarList({
   to?: (r: any) => string | undefined;
   valueSuffix?: string;
   formatValue?: (n: number) => string;
-  stackOf?: (r: any) => Array<{ value: number; className: string }>;
+  stackOf?: (r: any) => Array<{ value: number; className: string; title?: string }>;
 }) {
   const max = Math.max(1, ...rows.map(valueOf));
   return (
@@ -42,6 +42,7 @@ export function BarList({
                       key={j}
                       className={`h-full ${seg.className}`}
                       style={{ width: `${(seg.value / max) * 100}%` }}
+                      title={seg.title}
                     />
                   ))}
                 </div>

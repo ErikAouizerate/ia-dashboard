@@ -6,6 +6,18 @@ import { BarList } from "../components/ui/BarList";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { formatDuration } from "../lib/format";
+
+const MODEL_COLORS = [
+  "bg-blue-500",
+  "bg-emerald-400",
+  "bg-amber-400",
+  "bg-violet-500",
+  "bg-rose-400",
+  "bg-cyan-500",
+  "bg-orange-400",
+  "bg-teal-400",
+];
 
 export function DashboardView() {
   const dispatch = useDispatch();
@@ -77,6 +89,13 @@ export function DashboardView() {
                 valueOf={(r) => r.totalCost}
                 labelOf={(r) => r.name}
                 to={(r) => (r.id ? `/projects/${r.id}` : undefined)}
+                stackOf={(r) =>
+                  r.models.map((m: any, i: number) => ({
+                    value: m.totalCost,
+                    className: MODEL_COLORS[i % MODEL_COLORS.length],
+                    title: `${m.model}: ${m.totalCost.toFixed(2)} € (${Math.round(m.share * 100)}%)`,
+                  }))
+                }
               />
             </Card>
             <Card className="p-4">
@@ -95,6 +114,35 @@ export function DashboardView() {
                   { value: r.tokensInput, className: "bg-blue-500" },
                   { value: r.tokensOutput, className: "bg-emerald-400" },
                 ]}
+              />
+            </Card>
+            <Card className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Tokens par projet</h3>
+              <BarList
+                rows={summary.byProject}
+                valueOf={(r) => r.tokensInput + r.tokensOutput}
+                labelOf={(r) => r.name}
+                to={(r) => (r.id ? `/projects/${r.id}` : undefined)}
+                valueSuffix=""
+                formatValue={(n) => n.toLocaleString()}
+                stackOf={(r) =>
+                  r.models.map((m: any, i: number) => ({
+                    value: m.tokensInput + m.tokensOutput,
+                    className: MODEL_COLORS[i % MODEL_COLORS.length],
+                    title: `${m.model}: ${(m.tokensInput + m.tokensOutput).toLocaleString()} tok`,
+                  }))
+                }
+              />
+            </Card>
+            <Card className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Temps passé par projet</h3>
+              <BarList
+                rows={summary.timeByProject}
+                valueOf={(r) => r.durationMs}
+                labelOf={(r) => r.name}
+                to={(r) => (r.id ? `/projects/${r.id}` : undefined)}
+                valueSuffix=""
+                formatValue={(n) => formatDuration(n)}
               />
             </Card>
           </div>
