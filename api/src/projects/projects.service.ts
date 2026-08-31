@@ -5,6 +5,7 @@ import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
+import { groupProjects } from "./project-groups";
 
 @Injectable()
 export class ProjectsService {
@@ -56,22 +57,24 @@ export class ProjectsService {
     const agg = this.reader.aggregateByDirectory({});
     const byDir = new Map(agg.map((a) => [a.directory, a]));
     const times = new Map(this.reader.timeByDirectory({}).map((t) => [t.directory, t.durationMs]));
-    return rows.map((p) => {
-      const a: DirectoryAggregate | undefined = byDir.get(p.directory);
-      return {
-        id: p.id,
-        name: p.name,
-        directory: p.directory,
-        stale: p.stale,
-        firstSeen: p.firstSeen,
-        lastSeen: p.lastSeen,
-        sessionCount: a?.sessions ?? 0,
-        totalCost: a?.totalCost ?? 0,
-        tokensInput: a?.tokensInput ?? 0,
-        tokensOutput: a?.tokensOutput ?? 0,
-        durationMs: times.get(p.directory) ?? 0,
-      };
-    });
+    return groupProjects(rows)
+      .map((g) => {
+        let sessionCount = 0;
+        let totalCost = 0;
+        let tokensInput = 0;
+        let tokensOutput = 0;
+        let durationMs = 0;
+        for (const d of g.directories) {
+          const a = byDir.get(d);
+          sessionCount += a?.sessions ?? 0;
+          totalCost += a?.totalCost ?? 0;
+          tokensInput += a?.tokensInput ?? 0;
+          tokensOutput += a?.tokensOutput ?? 0;
+          durationMs += times.get(d) ?? 0;
+        }
+        return { ...g, sessionCount, totalCost, tokensInput, tokensOutput, durationMs };
+      })
+      .sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
   }
 
   async findOne(id: string) {

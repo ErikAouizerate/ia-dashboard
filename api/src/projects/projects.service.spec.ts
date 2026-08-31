@@ -3,6 +3,7 @@ import { ProjectsService } from "./projects.service";
 const readerMock = {
   listDirectories: jest.fn().mockReturnValue([
     { directory: "/home/user/gateway", firstSeen: 1000, lastSeen: 2000 },
+    { directory: "/home/user/gateway_v2", firstSeen: 1500, lastSeen: 2500 },
   ]),
   aggregateByDirectory: jest.fn().mockReturnValue([
     {
@@ -14,6 +15,16 @@ const readerMock = {
       sessions: 2,
       firstSeen: 1000,
       lastSeen: 2000,
+    },
+    {
+      directory: "/home/user/gateway_v2",
+      name: "gateway_v2",
+      totalCost: 3,
+      tokensInput: 6,
+      tokensOutput: 12,
+      sessions: 1,
+      firstSeen: 1500,
+      lastSeen: 2500,
     },
   ]),
   aggregateByModel: jest.fn().mockReturnValue([
@@ -27,6 +38,7 @@ const readerMock = {
   ]),
   timeByDirectory: jest.fn().mockReturnValue([
     { directory: "/home/user/gateway", durationMs: 7200000 },
+    { directory: "/home/user/gateway_v2", durationMs: 1800000 },
   ]),
   aggregateByDirectoryAndModel: jest.fn().mockReturnValue([
     {
@@ -36,6 +48,14 @@ const readerMock = {
       tokensInput: 10,
       tokensOutput: 20,
       sessions: 2,
+    },
+    {
+      directory: "/home/user/gateway_v2",
+      model: "deepseek-v4-flash",
+      totalCost: 3,
+      tokensInput: 6,
+      tokensOutput: 12,
+      sessions: 1,
     },
   ]),
 };
@@ -81,7 +101,8 @@ describe("ProjectsService", () => {
     };
     const db = mkChain(
       [projectRow], // syncProjects: existing select
-      [], // syncProjects: upsert (awaited, ignored)
+      [], // syncProjects: upsert gateway
+      [], // syncProjects: upsert gateway_v2
       [projectRow], // list select
     );
     const svc = new ProjectsService(db as any, readerMock as any);
@@ -90,6 +111,44 @@ describe("ProjectsService", () => {
     expect(rows[0].totalCost).toBe(5);
     expect(rows[0].sessionCount).toBe(2);
     expect(rows[0].durationMs).toBe(7200000);
+  });
+
+  it("list groups versioned directories under the nominal name", async () => {
+    const gateway = {
+      id: "p1",
+      name: "gateway",
+      directory: "/home/user/gateway",
+      stale: false,
+      firstSeen: new Date(1000),
+      lastSeen: new Date(2000),
+    };
+    const gatewayV2 = {
+      id: "p2",
+      name: "gateway_v2",
+      directory: "/home/user/gateway_v2",
+      stale: false,
+      firstSeen: new Date(1500),
+      lastSeen: new Date(2500),
+    };
+    const db = mkChain(
+      [], // syncProjects: existing select
+      [], // syncProjects: upsert gateway
+      [], // syncProjects: upsert gateway_v2
+      [gateway, gatewayV2], // list select
+    );
+    const svc = new ProjectsService(db as any, readerMock as any);
+    const rows = await svc.list();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe("nominal:gateway");
+    expect(rows[0].name).toBe("gateway");
+    expect(rows[0].directory).toBe("/home/user/gateway");
+    expect(rows[0].directories).toEqual([
+      "/home/user/gateway",
+      "/home/user/gateway_v2",
+    ]);
+    expect(rows[0].sessionCount).toBe(3);
+    expect(rows[0].totalCost).toBe(8);
+    expect(rows[0].durationMs).toBe(9000000);
   });
 
   it("findOne returns features and proposals", async () => {
