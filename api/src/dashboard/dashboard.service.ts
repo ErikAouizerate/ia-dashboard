@@ -1,9 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { count, sql } from "drizzle-orm";
+import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, projects, sessionAnalyses } from "../db/schema";
+import { groupProjects, ProjectGroupMeta } from "../projects/project-groups";
+import { nominalId, nominalName } from "../projects/nominal-name";
 
 @Injectable()
 export class DashboardService {
@@ -25,37 +28,129 @@ export class DashboardService {
         .select({ c: count() })
         .from(features)
         .then((r) => Number(r[0]?.c ?? 0)),
-      this.db.select({ id: projects.id, directory: projects.directory }).from(projects),
+      this.db.select().from(projects),
     ]);
-    const idByDir = new Map(projectRows.map((p) => [p.directory, p.id]));
+    const groups = groupProjects(projectRows);
+    const dirToGroup = new Map<string, ProjectGroupMeta>();
+    for (const g of groups) {
+      for (const d of g.directories) dirToGroup.set(d, g);
+    }
+    const fallback = (directory: string): ProjectGroupMeta => {
+      const key = nominalName(basename(directory));
+      return {
+        id: nominalId(key),
+        name: key,
+        directory,
+        directories: [directory],
+        stale: false,
+        firstSeen: new Date(0),
+        lastSeen: new Date(0),
+      };
+    };
+
     const modelRows = this.reader.aggregateByDirectoryAndModel({ from });
     const timeRows = this.reader.timeByDirectory({ from });
-    const byProject = this.reader
-      .aggregateByDirectory({ from })
-      .map((a) => {
-        const models = modelRows
-          .filter((m) => m.directory === a.directory)
-          .map((m) => ({ ...m, share: a.sessions > 0 ? m.sessions / a.sessions : 0 }))
-          .sort((x, y) => y.sessions - x.sessions);
-        return { ...a, id: idByDir.get(a.directory) ?? null, models };
-      });
-    const timeByProject = timeRows
-      .map((t) => ({
-        ...t,
-        name: t.directory.split("/").filter(Boolean).pop() ?? t.directory,
-        id: idByDir.get(t.directory) ?? null,
-      }))
-      .sort((a, b) => b.durationMs - a.durationMs);
+
+    const byProject = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        directory: string;
+        totalCost: number;
+        tokensInput: number;
+        tokensOutput: number;
+        sessions: number;
+      }
+    >();
+    for (const a of this.reader.aggregateByDirectory({ from })) {
+      const g = dirToGroup.get(a.directory) ?? fallback(a.directory);
+      const cur = byProject.get(g.name) ?? {
+        id: g.id,
+        name: g.name,
+        directory: g.directory,
+        totalCost: 0,
+        tokensInput: 0,
+        tokensOutput: 0,
+        sessions: 0,
+      };
+      cur.totalCost += a.totalCost;
+      cur.tokensInput += a.tokensInput;
+      cur.tokensOutput += a.tokensOutput;
+      cur.sessions += a.sessions;
+      byProject.set(g.name, cur);
+    }
+
+    const modelsByProject = new Map<
+      string,
+      Map<
+        string,
+        {
+          model: string;
+          totalCost: number;
+          tokensInput: number;
+          tokensOutput: number;
+          sessions: number;
+        }
+      >
+    >();
+    for (const m of modelRows) {
+      const g = dirToGroup.get(m.directory) ?? fallback(m.directory);
+      const map = modelsByProject.get(g.name) ?? new Map();
+      const cur = map.get(m.model);
+      if (cur) {
+        cur.totalCost += m.totalCost;
+        cur.tokensInput += m.tokensInput;
+        cur.tokensOutput += m.tokensOutput;
+        cur.sessions += m.sessions;
+      } else {
+        map.set(m.model, {
+          model: m.model,
+          totalCost: m.totalCost,
+          tokensInput: m.tokensInput,
+          tokensOutput: m.tokensOutput,
+          sessions: m.sessions,
+        });
+      }
+      modelsByProject.set(g.name, map);
+    }
+
+    const timeByProject = new Map<
+      string,
+      { directory: string; name: string; durationMs: number; id: string }
+    >();
+    for (const t of timeRows) {
+      const g = dirToGroup.get(t.directory) ?? fallback(t.directory);
+      const cur = timeByProject.get(g.name);
+      if (cur) cur.durationMs += t.durationMs;
+      else
+        timeByProject.set(g.name, {
+          directory: g.directory,
+          name: g.name,
+          durationMs: t.durationMs,
+          id: g.id,
+        });
+    }
+
     return {
       periodDays,
       ...all,
       sessionCount: all.sessions,
       analysedCount,
       featureCount,
-      byProject,
+      byProject: [...byProject.values()]
+        .map((p) => ({
+          ...p,
+          models: [...(modelsByProject.get(p.name)?.values() ?? [])]
+            .map((m) => ({ ...m, share: p.sessions > 0 ? m.sessions / p.sessions : 0 }))
+            .sort((x, y) => y.sessions - x.sessions),
+        }))
+        .sort((a, b) => b.totalCost - a.totalCost),
       byModel: this.reader.aggregateByModel({ from }),
       byDay: this.reader.aggregateByDay({ from }),
-      timeByProject,
+      timeByProject: [...timeByProject.values()].sort(
+        (a, b) => b.durationMs - a.durationMs,
+      ),
     };
   }
 }
