@@ -99,6 +99,46 @@ function buildFixture(dir: string): string {
   return path;
 }
 
+function buildMultiModelFixture(dir: string): string {
+  const path = join(dir, "opencode.db");
+  const db = new Database(path);
+  db.exec(`CREATE TABLE session (
+             id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
+             title TEXT, model TEXT, agent TEXT,
+             cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+             tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+             summary_additions INTEGER, summary_deletions INTEGER, summary_files INTEGER,
+             time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);`);
+  const ins = db.prepare(
+    `INSERT INTO session (id, project_id, parent_id, directory, path, title, model, agent, cost,
+       tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+       summary_additions, summary_deletions, summary_files, time_created, time_updated, time_compacting)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  // gateway : parent + subagent deepseek, parent claude, parent deepseek (mergé)
+  ins.run("g1", null, null, "/home/user/gateway", null, "A",
+    '{"id":"deepseek-v4-flash-free","providerID":"opencode"}', "build",
+    1.0, 100, 200, 0, 0, 0, 0, 0, 0, 1000, 5000, null);
+  ins.run("g1-sub", null, "g1", "/home/user/gateway", null, "sub",
+    '{"id":"deepseek-v4-flash-free","providerID":"opencode"}', "general",
+    0.5, 10, 20, 0, 0, 0, 0, 0, 0, 1500, 2500, null);
+  ins.run("g2", null, null, "/home/user/gateway", null, "B",
+    '{"id":"claude-sonnet-4-20250514","providerID":"anthropic"}', "build",
+    2.0, 50, 60, 0, 0, 0, 0, 0, 0, 2000, 3000, null);
+  ins.run("g3", null, null, "/home/user/gateway", null, "C",
+    '{"id":"deepseek-v4-flash-free","providerID":"opencode"}', "build",
+    3.0, 300, 400, 0, 0, 0, 0, 0, 0, 3000, 4000, null);
+  // api : parent claude, parent deepseek à durée négative
+  ins.run("a1", null, null, "/home/user/api", null, "D",
+    '{"id":"claude-sonnet-4-20250514","providerID":"anthropic"}', "build",
+    4.0, 700, 800, 0, 0, 0, 0, 0, 0, 1000, 2000, null);
+  ins.run("a2", null, null, "/home/user/api", null, "E",
+    '{"id":"deepseek-v4-flash-free","providerID":"opencode"}', "build",
+    0.1, 1, 1, 0, 0, 0, 0, 0, 0, 5000, 4000, null);
+  db.close();
+  return path;
+}
+
 describe("OpenCodeReader", () => {
   let dir: string;
   let path: string;
@@ -204,5 +244,29 @@ describe("OpenCodeReader", () => {
   it("aggregates by day (YYYY-MM-DD)", () => {
     const days = reader.aggregateByDay({ from: 0 });
     expect(days[0].day).toBe(new Date(1785702292033).toISOString().slice(0, 10));
+  });
+
+  describe("multi-model fixture", () => {
+    let reader: OpenCodeReader;
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), "oc-multi-"));
+      path = buildMultiModelFixture(dir);
+      reader = new OpenCodeReader(path);
+      reader.open();
+    });
+    afterEach(() => reader.close());
+
+    it("aggregates by directory and model, merging duplicate JSON model ids", () => {
+      const rows = reader.aggregateByDirectoryAndModel({});
+      const gateway = rows.filter((r) => r.directory === "/home/user/gateway");
+      const ds = gateway.find((r) => r.model === "deepseek-v4-flash-free");
+      // g1 + g1-sub + g3 : l'agrégat modèle inclut les subagents (comme aggregateByModel)
+      expect(ds?.sessions).toBe(3);
+      expect(ds?.totalCost).toBeCloseTo(4.5); // 1.0 + 0.5 + 3.0
+      expect(ds?.tokensInput).toBe(410); // 100 + 10 + 300
+      const claude = gateway.find((r) => r.model === "claude-sonnet-4-20250514");
+      expect(claude?.sessions).toBe(1);
+      expect(rows.filter((r) => r.directory === "/home/user/api").length).toBe(2);
+    });
   });
 });

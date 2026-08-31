@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import {
   DayAggregate,
   DirectoryAggregate,
+  DirectoryModelAggregate,
   ModelAggregate,
   OpenCodeProject,
   OpenCodeSession,
@@ -284,6 +285,51 @@ export class OpenCodeReader {
       )
       .all({ from }) as Omit<DirectoryAggregate, "name">[];
     return rows.map((r) => ({ ...r, name: basename(r.directory) }));
+  }
+
+  aggregateByDirectoryAndModel({ from = 0 }: { from?: number } = {}): DirectoryModelAggregate[] {
+    const db = this.requireDb();
+    const rows = db
+      .prepare(
+        `SELECT directory, model,
+                COALESCE(SUM(cost),0) AS totalCost,
+                COALESCE(SUM(tokens_input),0) AS tokensInput,
+                COALESCE(SUM(tokens_output),0) AS tokensOutput,
+                COUNT(*) AS sessions
+         FROM session
+         WHERE time_created >= @from AND directory IS NOT NULL AND directory != ''
+         GROUP BY directory, model`,
+      )
+      .all({ from }) as {
+      directory: string;
+      model: string;
+      totalCost: number;
+      tokensInput: number;
+      tokensOutput: number;
+      sessions: number;
+    }[];
+    const out: DirectoryModelAggregate[] = [];
+    for (const r of rows) {
+      const id = this.parseModel(r.model);
+      if (!id) continue;
+      const existing = out.find((m) => m.directory === r.directory && m.model === id);
+      if (existing) {
+        existing.totalCost += r.totalCost;
+        existing.tokensInput += r.tokensInput;
+        existing.tokensOutput += r.tokensOutput;
+        existing.sessions += r.sessions;
+      } else {
+        out.push({
+          directory: r.directory,
+          model: id,
+          totalCost: r.totalCost,
+          tokensInput: r.tokensInput,
+          tokensOutput: r.tokensOutput,
+          sessions: r.sessions,
+        });
+      }
+    }
+    return out.sort((a, b) => b.totalCost - a.totalCost);
   }
 
   aggregateByModel({ from = 0 }: { from?: number } = {}): ModelAggregate[] {

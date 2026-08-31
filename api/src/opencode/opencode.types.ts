@@ -75,6 +75,11 @@ export interface DirectoryAggregate extends SessionAggregate {
   lastSeen: number;
 }
 
+export interface DirectoryModelAggregate extends SessionAggregate {
+  directory: string;
+  model: string;
+}
+
 export interface ModelAggregate extends SessionAggregate {
   model: string;
 }
