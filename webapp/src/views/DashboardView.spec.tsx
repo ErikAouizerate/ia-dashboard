@@ -123,5 +123,8 @@ describe("DashboardView", () => {
     expect(html).toContain("Tokens par projet");
     expect(html).toContain("Temps passé par projet");
     expect(html).toContain("1h 30m");
+    // Tokens par projet en 2e position, juste après Coût par projet
+    expect(html.indexOf("Coût par projet")).toBeLessThan(html.indexOf("Tokens par projet"));
+    expect(html.indexOf("Tokens par projet")).toBeLessThan(html.indexOf("Coût par modèle"));
   });
 });
