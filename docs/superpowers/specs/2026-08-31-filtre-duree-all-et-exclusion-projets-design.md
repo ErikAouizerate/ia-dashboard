@@ -50,13 +50,15 @@ Deux évolutions du dashboard :
 
 1. **`webapp/src/lib/excludedProjects.ts`** (nouveau)
    - `export const EXCLUDED_PROJECT_NAMES = ["data-890e18da-164a-468a-b9f9-c14dd8ec0712-1786028947-d162bd83-batch-0000", "vps-setup", "test-oral", "tmp"];`
+   - `export function isExcludedProject(name: string): boolean` — renvoie
+     `EXCLUDED_PROJECT_NAMES.includes(name)`. Helper unique, testable.
 2. **`webapp/src/views/DashboardView.tsx`**
    - Bouton `Tout` à côté de `7 jours` / `30 jours` : `load(0)`, actif quand
      `days === 0`.
    - `load(d)` inchangé (dispatch `DASHBOARD_LOAD_REQUESTED` avec `periodDays: d`,
      path `/api/dashboard/summary?periodDays=${d}`).
-   - `summary.byProject` et `summary.timeByProject` filtrés sur
-     `EXCLUDED_PROJECT_NAMES` (comparaison sur le `name`) avant rendu des `BarList`.
+   - `summary.byProject` et `summary.timeByProject` filtrés via
+     `isExcludedProject(r.name)` avant rendu des `BarList`.
    - KPI « Sessions » : sous-titre `0 jours` → `Tout` quand `days === 0`.
 3. Aucun changement de store (`periodDays` reste un `number`, `0` = all).
 
@@ -77,8 +79,8 @@ Deux évolutions du dashboard :
 
 - `api/src/dashboard/dashboard.service.spec.ts` : `summary(0)` renvoie tous les
   agrégats (from=0) et `periodDays=0` ; les cas existants conservés.
-- `webapp/src/lib/excludedProjects.spec.ts` (nouveau) : liste attendue, fonction
-  de filtre éventuelle.
+- `webapp/src/lib/excludedProjects.spec.ts` (nouveau) : liste attendue et
+  `isExcludedProject` (vrai pour les 4 valeurs, faux sinon).
 - `webapp/src/views/DashboardView.spec.tsx` : bouton « Tout » ; projets exclus
   absents de `byProject`/`timeByProject` rendus ; sous-titre « Tout ».
 
