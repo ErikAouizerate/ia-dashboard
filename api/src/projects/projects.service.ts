@@ -4,7 +4,6 @@ import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
-import { DirectoryAggregate } from "../opencode/opencode.types";
 import { groupProjects } from "./project-groups";
 
 @Injectable()
