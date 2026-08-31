@@ -71,11 +71,48 @@ describe("SessionsService", () => {
     expect(a?.status).toBe("done");
   });
 
-  it("meta returns projects as id/name pairs from pg", async () => {
-    const db = mkDb([{ id: "p1", name: "gateway", stale: false }]);
+  it("meta returns grouped projects with synthetic ids", async () => {
+    const db = mkDb([
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/p/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+      {
+        id: "p2",
+        name: "gateway_v2",
+        directory: "/p/gateway_v2",
+        stale: false,
+        firstSeen: new Date(1500),
+        lastSeen: new Date(2500),
+      },
+    ]);
     const svc = new SessionsService(readerMock as any, db as any);
     const meta = await svc.meta();
-    expect(meta.projects).toEqual([{ id: "p1", name: "gateway" }]);
+    expect(meta.projects).toEqual([{ id: "nominal:gateway", name: "gateway" }]);
     expect(meta.models).toEqual(["deepseek-v4-flash"]);
+  });
+
+  it("list resolves a synthetic projectId to member directories", async () => {
+    const db = mkDb(
+      [
+        { id: "p1", directory: "/p/gateway" },
+        { id: "p2", directory: "/p/gateway_v2" },
+      ], // resolve select-all
+      [], // annotatedMap
+      [], // analysisMap
+      [
+        { id: "p1", directory: "/p/gateway" },
+        { id: "p2", directory: "/p/gateway_v2" },
+      ], // byDir
+    );
+    const svc = new SessionsService(readerMock as any, db as any);
+    await svc.list({ projectId: "nominal:gateway" });
+    expect(readerMock.listSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ directories: ["/p/gateway", "/p/gateway_v2"] }),
+    );
   });
 });

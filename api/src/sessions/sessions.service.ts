@@ -1,10 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { eq, inArray } from "drizzle-orm";
+import { basename } from "node:path";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { featureSessions, projects, sessionAnalyses } from "../db/schema";
 import { SessionListFilters } from "../opencode/opencode.types";
+import { groupProjects } from "../projects/project-groups";
+import { nominalFromId, nominalName } from "../projects/nominal-name";
 
 type SessionAnalysisStatus = "none" | "pending" | "analyzing" | "done" | "error";
 
@@ -41,12 +44,21 @@ export class SessionsService {
 
   async list(filters: SessionListFilters & { projectId?: string }) {
     if (filters.projectId) {
-      const p = await this.db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, filters.projectId))
-        .then((r) => r[0]);
-      filters.directory = p?.directory ?? filters.directory;
+      const nominal = nominalFromId(filters.projectId);
+      if (nominal !== null) {
+        const all = await this.db.select().from(projects);
+        const dirs = all
+          .filter((r) => nominalName(basename(r.directory)) === nominal)
+          .map((r) => r.directory);
+        if (dirs.length > 0) filters.directories = dirs;
+      } else {
+        const p = await this.db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, filters.projectId))
+          .then((r) => r[0]);
+        filters.directory = p?.directory ?? filters.directory;
+      }
     }
     const page = this.reader.listSessions(filters);
     const [map, amap] = await Promise.all([
@@ -106,7 +118,7 @@ export class SessionsService {
   async meta() {
     const rows = await this.db.select().from(projects).where(eq(projects.stale, false));
     return {
-      projects: rows.map((p) => ({ id: p.id, name: p.name })),
+      projects: groupProjects(rows).map((g) => ({ id: g.id, name: g.name })),
       models: this.reader.listModels(),
     };
   }
