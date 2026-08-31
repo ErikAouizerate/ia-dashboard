@@ -56,6 +56,16 @@ describe("AnalysisService clustering", () => {
   it("clusterProject creates pending proposals and marks old pending stale", async () => {
     const db = mkDb(
       [
+        {
+          id: "p1",
+          name: "gateway",
+          directory: "/p/gateway",
+          stale: false,
+          firstSeen: new Date(1000),
+          lastSeen: new Date(2000),
+        },
+      ], // resolveProjectGroup: projects select-all
+      [
         { sessionId: "s1", projectId: "p1", status: "done", title: "A", analyzedAt: new Date(1000), summary: "s", demandes: [] },
         { sessionId: "s2", projectId: "p1", status: "done", title: "B", analyzedAt: new Date(2000), summary: "s", demandes: [] },
       ], // analyzedSessionsForProject: done analyses
@@ -68,6 +78,64 @@ describe("AnalysisService clustering", () => {
     const n = await svc.clusterProject("p1");
     expect(n).toBe(1);
     expect(llmMock.chatCompletion).toHaveBeenCalled();
+  });
+
+  it("clusterProject resolves a synthetic id and clusters member sessions", async () => {
+    const values: unknown[] = [];
+    let i = 0;
+    const results: unknown[] = [
+      [
+        {
+          id: "p1",
+          name: "gateway",
+          directory: "/p/gateway",
+          stale: false,
+          firstSeen: new Date(1000),
+          lastSeen: new Date(2000),
+        },
+        {
+          id: "p2",
+          name: "gateway_v2",
+          directory: "/p/gateway_v2",
+          stale: false,
+          firstSeen: new Date(1500),
+          lastSeen: new Date(2500),
+        },
+      ], // resolveProjectGroup: projects select-all (group nominal:gateway)
+      [
+        { sessionId: "s1", projectId: "p1", status: "done", title: "A", analyzedAt: new Date(1000), summary: "s", demandes: [] },
+        { sessionId: "s2", projectId: "p2", status: "done", title: "B", analyzedAt: new Date(2000), summary: "s", demandes: [] },
+      ], // analyzedSessionsForProject: done analyses under both member ids
+      [], // pending proposals
+      [], // linked sessions
+      [{ id: "pr-old" }], // update stale returning (awaited, ignored)
+      [{ id: "pr1" }], // insert proposal returning
+    ];
+    const chain: any = {
+      then: (resolve: (v: any) => void) => resolve(results[i++] ?? []),
+      from: () => chain,
+      where: () => chain,
+      values: (v: unknown) => {
+        values.push(v);
+        return chain;
+      },
+      returning: () => chain,
+      set: () => chain,
+      limit: () => chain,
+      orderBy: () => chain,
+    };
+    const db = {
+      select: jest.fn(() => chain),
+      insert: jest.fn(() => chain),
+      update: jest.fn(() => chain),
+      delete: jest.fn(() => chain),
+    };
+    const svc = new AnalysisService(db as any, readerMock as any, llmMock as any);
+    const n = await svc.clusterProject("nominal:gateway");
+    expect(n).toBe(1);
+    expect(llmMock.chatCompletion).toHaveBeenCalled();
+    const proposal = values.find((v) => (v as any).name === "Authentification OAuth") as any;
+    expect(proposal.projectId).toBe("p1");
   });
 
   it("acceptProposal creates a feature, links sessions + subagents, marks accepted", async () => {

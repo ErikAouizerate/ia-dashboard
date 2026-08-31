@@ -1,15 +1,11 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { desc, eq, inArray } from "drizzle-orm";
-import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
-import { groupProjects, ProjectGroupMeta } from "./project-groups";
-import { nominalFromId, nominalName } from "./nominal-name";
-
-type ProjectRow = typeof projects.$inferSelect;
+import { findProjectGroup, groupProjects } from "./project-groups";
 
 @Injectable()
 export class ProjectsService {
@@ -83,7 +79,7 @@ export class ProjectsService {
 
   async findOne(id: string) {
     const all = await this.db.select().from(projects);
-    const group = this.resolveGroup(id, all);
+    const group = findProjectGroup(id, all);
     if (!group) throw new NotFoundException("Project not found");
 
     const agg = this.reader.aggregateByDirectory({});
@@ -155,24 +151,5 @@ export class ProjectsService {
       features: featRows,
       proposals: propRows,
     };
-  }
-
-  private resolveGroup(
-    id: string,
-    all: ProjectRow[],
-  ): { meta: ProjectGroupMeta; rows: ProjectRow[] } | null {
-    const groups = groupProjects(all);
-    const nominal = nominalFromId(id);
-    let meta: ProjectGroupMeta | undefined;
-    if (nominal !== null) {
-      meta = groups.find((g) => g.id === id);
-    } else {
-      const row = all.find((r) => r.id === id);
-      if (!row) return null;
-      const key = nominalName(basename(row.directory));
-      meta = groups.find((g) => g.name === key);
-    }
-    if (!meta) return null;
-    return { meta, rows: all.filter((r) => meta.directories.includes(r.directory)) };
   }
 }

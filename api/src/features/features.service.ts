@@ -6,6 +6,7 @@ import { OpenCodeReader } from "../opencode/opencode-reader";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
 import { features, featureSessions, projects, sessionAnalyses } from "../db/schema";
+import { resolvePreferredProjectRowId } from "../projects/project-id-resolver";
 import { CreateFeatureDto, UpdateFeatureDto, createFeatureSchema, updateFeatureSchema } from "./dto";
 
 @Injectable()
@@ -82,9 +83,11 @@ export class FeaturesService {
         parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
       );
     }
+    const projectId = await resolvePreferredProjectRowId(this.db, parsed.data.projectId);
+    if (!projectId) throw new BadRequestException("projectId: unknown project");
     const rows = await this.db
       .insert(features)
-      .values({ ...parsed.data, tags: parsed.data.tags ?? [] })
+      .values({ ...parsed.data, projectId, tags: parsed.data.tags ?? [] })
       .returning();
     return rows[0];
   }
@@ -147,9 +150,15 @@ export class FeaturesService {
         parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
       );
     }
+    const data = { ...parsed.data };
+    if (data.projectId !== undefined) {
+      const projectId = await resolvePreferredProjectRowId(this.db, data.projectId);
+      if (!projectId) throw new BadRequestException("projectId: unknown project");
+      data.projectId = projectId;
+    }
     const rows = await this.db
       .update(features)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(features.id, id))
       .returning();
     if (rows.length === 0) throw new NotFoundException("Feature not found");

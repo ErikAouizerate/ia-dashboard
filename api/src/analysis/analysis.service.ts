@@ -1,11 +1,13 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
 import { featureProposals, features, featureSessions, projects, sessionAnalyses } from "../db/schema";
+import { resolveProjectGroup } from "../projects/project-id-resolver";
+import { preferredMemberRowId } from "../projects/project-groups";
 
 const MAX_ERRORS = 3;
 const ANALYSIS_SYSTEM_PROMPT =
@@ -247,16 +249,16 @@ export class AnalysisService {
     }
   }
 
-  private async analyzedSessionsForProject(projectId: string) {
+  private async analyzedSessionsForProject(projectIds: string[]) {
     const analyses = await this.db
       .select()
       .from(sessionAnalyses)
-      .where(eq(sessionAnalyses.projectId, projectId));
+      .where(inArray(sessionAnalyses.projectId, projectIds));
     const done = analyses.filter((a) => a.status === "done");
     const pendingProposals = await this.db
       .select()
       .from(featureProposals)
-      .where(and(eq(featureProposals.projectId, projectId), eq(featureProposals.status, "pending")));
+      .where(and(inArray(featureProposals.projectId, projectIds), eq(featureProposals.status, "pending")));
     const proposed = new Set(pendingProposals.flatMap((p) => p.sessionIds));
     const linked = new Set(
       (
@@ -267,7 +269,11 @@ export class AnalysisService {
   }
 
   async clusterProject(projectId: string): Promise<number> {
-    const candidates = await this.analyzedSessionsForProject(projectId);
+    const group = await resolveProjectGroup(this.db, projectId);
+    if (!group) throw new NotFoundException("Project not found");
+    const memberIds = group.rows.map((r) => r.id);
+    const preferredId = preferredMemberRowId(group.meta, group.rows);
+    const candidates = await this.analyzedSessionsForProject(memberIds);
     if (candidates.length < 2) return 0;
     const items = candidates
       .map((a) => ({
@@ -303,11 +309,11 @@ export class AnalysisService {
     await this.db
       .update(featureProposals)
       .set({ status: "stale", updatedAt: new Date() })
-      .where(and(eq(featureProposals.projectId, projectId), eq(featureProposals.status, "pending")));
+      .where(and(inArray(featureProposals.projectId, memberIds), eq(featureProposals.status, "pending")));
     let created = 0;
     for (const p of result.proposals ?? []) {
       await this.db.insert(featureProposals).values({
-        projectId,
+        projectId: preferredId,
         name: p.name,
         purpose: p.purpose,
         sessionIds: p.session_ids ?? [],

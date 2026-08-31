@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createFeatureSchema = z.object({
-  projectId: z.string().uuid().min(1),
+  projectId: z.string().min(1),
   name: z.string().min(1),
   purpose: z.string().optional(),
   satisfaction: z.number().int().min(1).max(5).nullable().optional(),

@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { nominalId, nominalName } from "./nominal-name";
+import { nominalFromId, nominalId, nominalName } from "./nominal-name";
 
 export interface ProjectRowLike {
   id: string;
@@ -42,4 +42,28 @@ export function groupProjects(rows: ProjectRowLike[]): ProjectGroupMeta[] {
       lastSeen: new Date(Math.max(...members.map((m) => m.lastSeen.getTime()))),
     };
   });
+}
+
+export function findProjectGroup(
+  id: string,
+  rows: ProjectRowLike[],
+): { meta: ProjectGroupMeta; rows: ProjectRowLike[] } | null {
+  const groups = groupProjects(rows);
+  const nominal = nominalFromId(id);
+  let meta: ProjectGroupMeta | undefined;
+  if (nominal !== null) {
+    meta = groups.find((g) => g.id === id);
+  } else {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return null;
+    const key = nominalName(basename(row.directory));
+    meta = groups.find((g) => g.name === key);
+  }
+  if (!meta) return null;
+  return { meta, rows: rows.filter((r) => meta.directories.includes(r.directory)) };
+}
+
+export function preferredMemberRowId(meta: ProjectGroupMeta, rows: ProjectRowLike[]): string {
+  const preferred = rows.find((r) => basename(r.directory) === meta.name);
+  return (preferred ?? rows[0]).id;
 }
