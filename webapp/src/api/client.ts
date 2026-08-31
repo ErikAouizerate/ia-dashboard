@@ -41,4 +41,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ sessionIds }),
     }),
+  dashboard: (periodDays: number) =>
+    apiFetch<any>(`/api/dashboard/summary?periodDays=${periodDays}`),
+  projects: () => apiFetch<any>(`/api/projects`),
+  project: (id: string) => apiFetch<any>(`/api/projects/${id}`),
+  proposals: (projectId?: string) =>
+    apiFetch<any>(`/api/analysis/proposals${projectId ? `?projectId=${projectId}` : ""}`),
+  acceptProposal: (id: string, body: { name?: string; purpose?: string }) =>
+    apiFetch<any>(`/api/proposals/${id}/accept`, { method: "POST", body: JSON.stringify(body) }),
+  dismissProposal: (id: string) =>
+    apiFetch<any>(`/api/proposals/${id}/dismiss`, { method: "POST" }),
+  runAnalysis: (sessionId: string) =>
+    apiFetch<any>(`/api/analysis/run`, { method: "POST", body: JSON.stringify({ sessionId }) }),
+  runProjectClustering: (projectId: string) =>
+    apiFetch<any>(`/api/analysis/run-project`, {
+      method: "POST",
+      body: JSON.stringify({ projectId }),
+    }),
+  sessionAnalysis: (id: string) => apiFetch<any>(`/api/sessions/${id}/analysis`),
+  reanalyzeFeature: (id: string) =>
+    apiFetch<any>(`/api/features/${id}/reanalyze`, { method: "POST" }),
 };

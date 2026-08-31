@@ -18,13 +18,13 @@ export function BulkLinkModal({
   sessionIds: string[];
   alreadyLinked: number;
   suggestedName: string;
-  meta: { projects: string[] };
+  meta: { projects: { id: string; name: string }[] };
   onClose: () => void;
   onLinked: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("new");
   const [name, setName] = useState(suggestedName);
-  const [project, setProject] = useState(meta.projects[0] ?? "");
+  const [projectId, setProjectId] = useState(meta.projects[0]?.id ?? "");
   const [purpose, setPurpose] = useState("");
   const [satisfaction, setSatisfaction] = useState(3);
   const [features, setFeatures] = useState<any[]>([]);
@@ -65,7 +65,7 @@ export function BulkLinkModal({
       if (tab === "new") {
         const feat = await api.createFeature({
           name: name.trim() || suggestedName,
-          project,
+          projectId,
           purpose,
           satisfaction: Number(satisfaction),
         });
@@ -142,10 +142,10 @@ export function BulkLinkModal({
                 <TextInput value={name} placeholder={suggestedName} onChange={(e) => setName(e.target.value)} />
               </Field>
               <Field label="Project">
-                <Select value={project} onChange={(e) => setProject(e.target.value)}>
+                <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                   {meta.projects.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
                 </Select>

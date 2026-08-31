@@ -2,6 +2,9 @@ export interface SessionRow {
   id: string;
   title: string;
   projectName: string;
+  projectId: string | null;
+  directory: string;
+  isSubagent: boolean;
   model: string;
   agent: string | null;
   cost: number;
@@ -10,6 +13,8 @@ export interface SessionRow {
   timeCreated: number;
   annotated: boolean;
   featureId: string | null;
+  analysedStatus: "none" | "pending" | "analyzing" | "done" | "error";
+  analysed: boolean;
 }
 
 interface SessionsState {
@@ -18,7 +23,7 @@ interface SessionsState {
   page: number;
   pageSize: number;
   filters: Record<string, string>;
-  meta: { projects: string[]; models: string[] };
+  meta: { projects: { id: string; name: string }[]; models: string[] };
   loading: boolean;
   error: string | null;
 }

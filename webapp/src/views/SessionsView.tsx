@@ -22,7 +22,7 @@ import {
 function Filters({
   meta,
 }: {
-  meta: { projects: string[]; models: string[] };
+  meta: { projects: { id: string; name: string }[]; models: string[] };
 }) {
   const dispatch = useDispatch();
   const [project, setProject] = useState("");
@@ -56,8 +56,8 @@ function Filters({
         >
           <option value="">All projects</option>
           {meta.projects.map((p) => (
-            <option key={p} value={p}>
-              {p}
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </Select>
@@ -83,7 +83,7 @@ function Filters({
           <option value="no">Not annotated</option>
         </Select>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={() => apply({ project, model, annotated })}>
+          <Button variant="primary" onClick={() => apply({ projectId: project, model, annotated })}>
             Apply
           </Button>
           <Button onClick={reset}>Reset</Button>
