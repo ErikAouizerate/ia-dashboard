@@ -58,4 +58,9 @@ export class FeaturesController {
   resync(@Param("id") id: string, @Param("sessionId") sessionId: string) {
     return this.svc.resyncSession(id, sessionId);
   }
+
+  @Post(":id/reanalyze")
+  reanalyze(@Param("id") id: string) {
+    return this.svc.reanalyze(id);
+  }
 }
