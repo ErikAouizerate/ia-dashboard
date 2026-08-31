@@ -35,6 +35,7 @@ export interface SessionListFilters {
   from?: string;
   to?: string;
   annotated?: "yes" | "no";
+  analysed?: string;
   parentOnly?: boolean;
   page?: number;
   pageSize?: number;

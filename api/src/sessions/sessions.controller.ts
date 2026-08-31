@@ -8,33 +8,30 @@ export class SessionsController {
 
   @Get()
   async index(@Query() q: Record<string, string>) {
-    const filters: SessionListFilters = {
+    const filters: SessionListFilters & { projectId?: string } = {
       project: q.project,
+      projectId: q.projectId,
+      directory: q.directory,
       model: q.model,
       from: q.from,
       to: q.to,
       annotated: q.annotated as SessionListFilters["annotated"],
+      analysed: q.analysed,
+      parentOnly: q.parentOnly === "true",
       page: q.page ? Number(q.page) : undefined,
       pageSize: q.pageSize ? Number(q.pageSize) : undefined,
     };
-    const page = this.svc.list(filters);
-    const map = await this.svc.annotatedMap(page.items.map((i) => i.id));
-    let items = page.items.map((i) => ({
-      ...i,
-      annotated: map[i.id] != null,
-      featureId: map[i.id] ?? null,
-    }));
-    if (q.annotated === "yes") {
-      items = items.filter((i) => i.annotated);
-    } else if (q.annotated === "no") {
-      items = items.filter((i) => !i.annotated);
-    }
-    return { ...page, total: items.length, items };
+    return this.svc.list(filters);
   }
 
   @Get("meta")
   meta() {
     return this.svc.meta();
+  }
+
+  @Get(":id/analysis")
+  analysis(@Param("id") id: string) {
+    return this.svc.analysisFor(id);
   }
 
   @Get(":id")
