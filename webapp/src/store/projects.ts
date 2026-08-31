@@ -9,6 +9,7 @@ export interface ProjectRow {
   totalCost: number;
   tokensInput: number;
   tokensOutput: number;
+  durationMs: number;
 }
 
 export interface Proposal {

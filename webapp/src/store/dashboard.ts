@@ -13,6 +13,14 @@ export interface DashboardSummary {
     sessions: number;
     tokensInput: number;
     tokensOutput: number;
+    models: {
+      model: string;
+      totalCost: number;
+      tokensInput: number;
+      tokensOutput: number;
+      sessions: number;
+      share: number;
+    }[];
   }[];
   byModel: {
     model: string;
@@ -22,6 +30,7 @@ export interface DashboardSummary {
     tokensOutput: number;
   }[];
   byDay: { day: string; totalCost: number; sessions: number }[];
+  timeByProject: { directory: string; name: string; durationMs: number; id: string | null }[];
 }
 
 interface DashboardState {
