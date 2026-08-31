@@ -39,7 +39,15 @@ const summary = {
       tokensOutput: 200,
     },
   ],
-  byModel: [{ model: "deepseek-v4-flash", totalCost: 12.34, sessions: 42 }],
+  byModel: [
+    {
+      model: "deepseek-v4-flash",
+      totalCost: 12.34,
+      sessions: 42,
+      tokensInput: 1000,
+      tokensOutput: 2000,
+    },
+  ],
   byDay: [{ day: "2026-08-27", totalCost: 12.34, sessions: 42 }],
 };
 
@@ -66,5 +74,18 @@ describe("DashboardView", () => {
       </Provider>,
     );
     expect(html).toContain("Chargement");
+  });
+
+  it("renders tokens per model with input/output breakdown", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore(summary)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("Tokens par modèle");
+    expect(html).toContain("deepseek-v4-flash");
+    expect(html).toContain("3,000");
   });
 });

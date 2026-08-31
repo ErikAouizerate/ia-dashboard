@@ -14,7 +14,13 @@ export interface DashboardSummary {
     tokensInput: number;
     tokensOutput: number;
   }[];
-  byModel: { model: string; totalCost: number; sessions: number }[];
+  byModel: {
+    model: string;
+    totalCost: number;
+    sessions: number;
+    tokensInput: number;
+    tokensOutput: number;
+  }[];
   byDay: { day: string; totalCost: number; sessions: number }[];
 }
 

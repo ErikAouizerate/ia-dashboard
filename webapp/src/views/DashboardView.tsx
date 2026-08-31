@@ -83,6 +83,20 @@ export function DashboardView() {
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût par modèle</h3>
               <BarList rows={summary.byModel} valueOf={(r) => r.totalCost} labelOf={(r) => r.model} />
             </Card>
+            <Card className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Tokens par modèle</h3>
+              <BarList
+                rows={summary.byModel}
+                valueOf={(r) => r.tokensInput + r.tokensOutput}
+                labelOf={(r) => r.model}
+                valueSuffix=""
+                formatValue={(n) => n.toLocaleString()}
+                stackOf={(r) => [
+                  { value: r.tokensInput, className: "bg-blue-500" },
+                  { value: r.tokensOutput, className: "bg-emerald-400" },
+                ]}
+              />
+            </Card>
           </div>
           <Card className="mt-4 p-4">
             <h3 className="mb-3 text-sm font-semibold text-gray-900">Sessions par jour</h3>
