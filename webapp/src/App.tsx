@@ -3,6 +3,8 @@ import { DashboardView } from "./views/DashboardView";
 import { SessionsView } from "./views/SessionsView";
 import { FeaturesView } from "./views/FeaturesView";
 import { FeatureDetail } from "./views/FeatureDetail";
+import { ProjectsView } from "./views/ProjectsView";
+import { ProjectDetail } from "./views/ProjectDetail";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `block rounded-md px-3 py-1.5 text-sm font-medium ${
@@ -22,6 +24,9 @@ export function App() {
             <NavLink to="/sessions" className={navLinkClass}>
               Sessions
             </NavLink>
+            <NavLink to="/projects" className={navLinkClass}>
+              Projets
+            </NavLink>
             <NavLink to="/features" className={navLinkClass}>
               Features
             </NavLink>
@@ -31,6 +36,8 @@ export function App() {
           <Routes>
             <Route path="/" element={<DashboardView />} />
             <Route path="/sessions" element={<SessionsView />} />
+            <Route path="/projects" element={<ProjectsView />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/features" element={<FeaturesView />} />
             <Route path="/features/:id" element={<FeatureDetail />} />
           </Routes>
