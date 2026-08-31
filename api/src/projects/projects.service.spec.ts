@@ -177,4 +177,56 @@ describe("ProjectsService", () => {
     ]);
     expect(detail.ungroupedSessions).toBe(0); // 2 sessions - 1 linked - 1 proposed = 0
   });
+
+  it("findOne resolves a synthetic id and merges members", async () => {
+    const rows = [
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/home/user/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+      {
+        id: "p2",
+        name: "gateway_v2",
+        directory: "/home/user/gateway_v2",
+        stale: false,
+        firstSeen: new Date(1500),
+        lastSeen: new Date(2500),
+      },
+    ];
+    const db = mkChain(
+      rows, // resolveGroup select-all
+      [{ id: "f1", name: "Auth" }, { id: "f2", name: "Deploy" }], // features (inArray both ids)
+      [{ id: "pr1", name: "Auth", status: "pending", sessionIds: ["s1"] }], // proposals
+      [{ sessionId: "s1" }], // featureSessions (linkedCount)
+    );
+    const svc = new ProjectsService(db as any, readerMock as any);
+    const detail = await svc.findOne("nominal:gateway");
+    expect(detail.id).toBe("nominal:gateway");
+    expect(detail.name).toBe("gateway");
+    expect(detail.directories).toEqual(["/home/user/gateway", "/home/user/gateway_v2"]);
+    expect(detail.features.map((f: any) => f.id)).toEqual(["f1", "f2"]);
+    expect(detail.sessionCount).toBe(3);
+    expect(detail.byModel).toEqual([
+      { model: "deepseek-v4-flash", totalCost: 8, sessions: 3 },
+    ]);
+  });
+
+  it("findOne throws NotFoundException for an unknown synthetic id", async () => {
+    const db = mkChain([
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/home/user/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+    ]);
+    const svc = new ProjectsService(db as any, readerMock as any);
+    await expect(svc.findOne("nominal:inconnu")).rejects.toThrow("Project not found");
+  });
 });

@@ -1,10 +1,15 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { desc, eq, inArray } from "drizzle-orm";
+import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { OpenCodeReader } from "../opencode/opencode-reader";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
-import { groupProjects } from "./project-groups";
+import { DirectoryAggregate } from "../opencode/opencode.types";
+import { groupProjects, ProjectGroupMeta } from "./project-groups";
+import { nominalFromId, nominalName } from "./nominal-name";
+
+type ProjectRow = typeof projects.$inferSelect;
 
 @Injectable()
 export class ProjectsService {
@@ -77,23 +82,49 @@ export class ProjectsService {
   }
 
   async findOne(id: string) {
-    const row = await this.db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, id))
-      .then((r) => r[0]);
-    if (!row) throw new NotFoundException("Project not found");
+    const all = await this.db.select().from(projects);
+    const group = this.resolveGroup(id, all);
+    if (!group) throw new NotFoundException("Project not found");
+
     const agg = this.reader.aggregateByDirectory({});
-    const a = agg.find((x) => x.directory === row.directory);
+    const memberAgg = group.meta.directories
+      .map((d) => agg.find((x) => x.directory === d))
+      .filter((x): x is DirectoryAggregate => Boolean(x));
+    const sessions = memberAgg.reduce((n, a) => n + a.sessions, 0);
+    const totalCost = memberAgg.reduce((n, a) => n + a.totalCost, 0);
+    const tokensInput = memberAgg.reduce((n, a) => n + a.tokensInput, 0);
+    const tokensOutput = memberAgg.reduce((n, a) => n + a.tokensOutput, 0);
+
+    const byModel = new Map<
+      string,
+      { model: string; totalCost: number; sessions: number }
+    >();
+    for (const m of this.reader.aggregateByDirectoryAndModel({})) {
+      if (!group.meta.directories.includes(m.directory)) continue;
+      const cur = byModel.get(m.model);
+      if (cur) {
+        cur.totalCost += m.totalCost;
+        cur.sessions += m.sessions;
+      } else {
+        byModel.set(m.model, {
+          model: m.model,
+          totalCost: m.totalCost,
+          sessions: m.sessions,
+        });
+      }
+    }
+    const sortedByModel = [...byModel.values()].sort((a, b) => b.totalCost - a.totalCost);
+
+    const memberIds = group.rows.map((r) => r.id);
     const featRows = await this.db
       .select()
       .from(features)
-      .where(eq(features.projectId, id))
+      .where(inArray(features.projectId, memberIds))
       .orderBy(desc(features.updatedAt));
     const propRows = await this.db
       .select()
       .from(featureProposals)
-      .where(eq(featureProposals.projectId, id))
+      .where(inArray(featureProposals.projectId, memberIds))
       .orderBy(desc(featureProposals.createdAt));
     const linkedCount =
       featRows.length === 0
@@ -108,23 +139,40 @@ export class ProjectsService {
       .filter((p) => p.status === "pending")
       .reduce((n, p) => n + p.sessionIds.length, 0);
     return {
-      id: row.id,
-      name: row.name,
-      directory: row.directory,
-      stale: row.stale,
-      firstSeen: row.firstSeen,
-      lastSeen: row.lastSeen,
-      sessionCount: a?.sessions ?? 0,
-      totalCost: a?.totalCost ?? 0,
-      tokensInput: a?.tokensInput ?? 0,
-      tokensOutput: a?.tokensOutput ?? 0,
-      ungroupedSessions: Math.max(0, (a?.sessions ?? 0) - linkedCount - proposedCount),
-      byModel: this.reader
-        .aggregateByDirectoryAndModel({})
-        .filter((m) => m.directory === row.directory)
-        .map(({ model, totalCost, sessions }) => ({ model, totalCost, sessions })),
+      id: group.meta.id,
+      name: group.meta.name,
+      directory: group.meta.directory,
+      directories: group.meta.directories,
+      stale: group.meta.stale,
+      firstSeen: group.meta.firstSeen,
+      lastSeen: group.meta.lastSeen,
+      sessionCount: sessions,
+      totalCost,
+      tokensInput,
+      tokensOutput,
+      ungroupedSessions: Math.max(0, sessions - linkedCount - proposedCount),
+      byModel: sortedByModel,
       features: featRows,
       proposals: propRows,
     };
+  }
+
+  private resolveGroup(
+    id: string,
+    all: ProjectRow[],
+  ): { meta: ProjectGroupMeta; rows: ProjectRow[] } | null {
+    const groups = groupProjects(all);
+    const nominal = nominalFromId(id);
+    let meta: ProjectGroupMeta | undefined;
+    if (nominal !== null) {
+      meta = groups.find((g) => g.id === id);
+    } else {
+      const row = all.find((r) => r.id === id);
+      if (!row) return null;
+      const key = nominalName(basename(row.directory));
+      meta = groups.find((g) => g.name === key);
+    }
+    if (!meta) return null;
+    return { meta, rows: all.filter((r) => meta.directories.includes(r.directory)) };
   }
 }
