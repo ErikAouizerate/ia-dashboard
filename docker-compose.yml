@@ -2,6 +2,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    networks:
+      - private
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ia}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ia}
@@ -18,6 +20,8 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
+    networks:
+      - private
     expose:
       - "3000"
     environment:
@@ -35,6 +39,8 @@ services:
     build:
       context: .
       dockerfile: webapp/Dockerfile
+    networks:
+      - private
     expose:
       - "5173"
     depends_on:
@@ -42,3 +48,7 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  private:
+    name: ia-dashboard-private

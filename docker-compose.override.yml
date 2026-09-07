@@ -1,11 +1,14 @@
 services:
-  db:
-    ports:
-      - "5433:5432"
-
   api:
     build:
       target: dev
+    command:
+      - sh
+      - -c
+      - pnpm --filter @ia-dashboard/api db:migrate && pnpm --filter @ia-dashboard/api start:dev
+    networks:
+      - private
+      - proxy
     environment:
       OPENCODE_DB_PATH: /opencode/opencode.db
       OPENCODE_AUTH_PATH: /opencode/auth.json
@@ -13,16 +16,34 @@ services:
     volumes:
       - ./api:/app/api
       - ${OPENCODE_DATA_DIR:-${HOME}/.local/share/opencode}:/opencode:ro
-    ports:
-      - "3001:3000"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: local-proxy
+      traefik.http.routers.ia-dashboard-api.rule: Host(`api.ia-dashboard.localhost`)
+      traefik.http.routers.ia-dashboard-api.entrypoints: web
+      traefik.http.routers.ia-dashboard-api.service: ia-dashboard-api
+      traefik.http.services.ia-dashboard-api.loadbalancer.server.port: "3000"
 
   webapp:
     build:
       target: dev
+    networks:
+      - private
+      - proxy
     environment:
       VITE_API_PROXY: http://api:3000
       CI: "true"
     volumes:
       - ./webapp:/app/webapp
-    ports:
-      - "5173:5173"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: local-proxy
+      traefik.http.routers.ia-dashboard.rule: Host(`ia-dashboard.localhost`)
+      traefik.http.routers.ia-dashboard.entrypoints: web
+      traefik.http.routers.ia-dashboard.service: ia-dashboard
+      traefik.http.services.ia-dashboard.loadbalancer.server.port: "5173"
+
+networks:
+  proxy:
+    external: true
+    name: local-proxy
