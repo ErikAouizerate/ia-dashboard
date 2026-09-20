@@ -58,6 +58,27 @@ const readerMock = {
       sessions: 1,
     },
   ]),
+  listConfigs: jest.fn().mockReturnValue([
+    {
+      configId: "cid1",
+      profile: "muse-spark",
+      config: null,
+      sessions: 3,
+      totalCost: 8,
+      tokensInput: 16,
+      tokensOutput: 32,
+      bySource: [],
+      models: [
+        {
+          model: "deepseek-v4-flash",
+          sessions: 3,
+          totalCost: 8,
+          tokensInput: 16,
+          tokensOutput: 32,
+        },
+      ],
+    },
+  ]),
 };
 
 const mkChain = (...results: unknown[]) => {
@@ -168,6 +189,26 @@ describe("ProjectsService", () => {
     expect(detail.byModel[0].model).toBe("deepseek-v4-flash");
     expect(detail.byModel).toEqual([
       { model: "deepseek-v4-flash", totalCost: 5, sessions: 2 },
+    ]);
+    expect(detail.durationMs).toBe(7200000);
+    expect(detail.configs).toEqual([
+      {
+        configId: "cid1",
+        profile: "muse-spark",
+        sessions: 3,
+        totalCost: 8,
+        tokensInput: 16,
+        tokensOutput: 32,
+        models: [
+          {
+            model: "deepseek-v4-flash",
+            sessions: 3,
+            totalCost: 8,
+            tokensInput: 16,
+            tokensOutput: 32,
+          },
+        ],
+      },
     ]);
   });
 

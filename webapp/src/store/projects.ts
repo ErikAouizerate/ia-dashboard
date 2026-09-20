@@ -13,8 +13,25 @@ export interface ProjectRow {
   durationMs: number;
 }
 
+export interface ProjectConfigRow {
+  configId: string | null;
+  profile: string | null;
+  sessions: number;
+  totalCost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  models: {
+    model: string;
+    sessions: number;
+    totalCost: number;
+    tokensInput: number;
+    tokensOutput: number;
+  }[];
+}
+
 export interface ProjectDetail extends ProjectRow {
   byModel: { model: string; totalCost: number; sessions: number }[];
+  configs: ProjectConfigRow[];
 }
 
 interface ProjectsState {

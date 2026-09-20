@@ -486,8 +486,11 @@ export class MultiSourceReader implements SessionReader {
     return null;
   }
 
-  listConfigs({ from = 0 }: { from?: number } = {}): ConfigSummary[] {
-    return this.buildConfigs(from).map(({ sessionList, ...summary }) => summary);
+  listConfigs({
+    from = 0,
+    directories,
+  }: { from?: number; directories?: string[] } = {}): ConfigSummary[] {
+    return this.buildConfigs(from, directories).map(({ sessionList, ...summary }) => summary);
   }
 
   getConfig(configId: string): ConfigDetail | null {
@@ -498,7 +501,7 @@ export class MultiSourceReader implements SessionReader {
     );
   }
 
-  private buildConfigs(from: number): ConfigDetail[] {
+  private buildConfigs(from: number, directories?: string[]): ConfigDetail[] {
     this.refresh();
     // ponytail: full session scan per request; index configs if the history grows large
     const captures = new Map<string, SessionConfigSnapshot>();
@@ -512,7 +515,7 @@ export class MultiSourceReader implements SessionReader {
     }
 
     const map = new Map<string, ConfigDetail>();
-    for (const s of this.collectAll({})) {
+    for (const s of this.collectAll(directories?.length ? { directories } : {})) {
       if (from > 0 && s.timeCreated < from) continue;
       const cap = captures.get(s.id) ?? null;
       const key = cap?.configId ?? NO_CONFIG_ID;

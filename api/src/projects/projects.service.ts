@@ -2,7 +2,8 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { desc, eq } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
+import { SourceAggregate } from "../opencode/opencode.types";
+import { MultiSourceReader } from "../opencode/multi-source-reader";
 import { projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
 import { findProjectGroup, groupProjects } from "./project-groups";
@@ -11,7 +12,7 @@ import { findProjectGroup, groupProjects } from "./project-groups";
 export class ProjectsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
+    @Inject(OPENCODE_READER) private readonly reader: MultiSourceReader,
   ) {}
 
   async syncProjects(): Promise<void> {
@@ -115,6 +116,19 @@ export class ProjectsService {
     }
     const sortedByModel = [...byModel.values()].sort((a, b) => b.totalCost - a.totalCost);
 
+    const times = new Map(this.reader.timeByDirectory({}).map((t) => [t.directory, t.durationMs]));
+    const durationMs = group.meta.directories.reduce((n, d) => n + (times.get(d) ?? 0), 0);
+
+    const configs = this.reader.listConfigs({ directories: group.meta.directories }).map((c) => ({
+      configId: c.configId,
+      profile: c.profile,
+      sessions: c.sessions,
+      totalCost: c.totalCost,
+      tokensInput: c.tokensInput,
+      tokensOutput: c.tokensOutput,
+      models: c.models,
+    }));
+
     return {
       id: group.meta.id,
       name: group.meta.name,
@@ -127,8 +141,10 @@ export class ProjectsService {
       totalCost,
       tokensInput,
       tokensOutput,
+      durationMs,
       bySource,
       byModel: sortedByModel,
+      configs,
     };
   }
 }
