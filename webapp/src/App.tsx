@@ -3,6 +3,8 @@ import { DashboardView } from "./views/DashboardView";
 import { SessionsView } from "./views/SessionsView";
 import { ProjectsView } from "./views/ProjectsView";
 import { ProjectDetail } from "./views/ProjectDetail";
+import { ConfigView } from "./views/ConfigView";
+import { ConfigDetail } from "./views/ConfigDetail";
 import { CompareView } from "./views/CompareView";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -26,6 +28,9 @@ export function App() {
             <NavLink to="/projects" className={navLinkClass}>
               Projets
             </NavLink>
+            <NavLink to="/configs" className={navLinkClass}>
+              Config
+            </NavLink>
             <NavLink to="/compare" className={navLinkClass}>
               Comparer
             </NavLink>
@@ -37,6 +42,8 @@ export function App() {
             <Route path="/sessions" element={<SessionsView />} />
             <Route path="/projects" element={<ProjectsView />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route path="/configs" element={<ConfigView />} />
+            <Route path="/configs/:id" element={<ConfigDetail />} />
             <Route path="/compare" element={<CompareView />} />
           </Routes>
         </main>

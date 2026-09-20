@@ -27,4 +27,6 @@ export const api = {
     apiFetch<any>(`/api/dashboard/summary?periodDays=${periodDays}`),
   projects: () => apiFetch<any>(`/api/projects`),
   project: (id: string) => apiFetch<any>(`/api/projects/${id}`),
+  configs: () => apiFetch<any>(`/api/configs`),
+  config: (id: string) => apiFetch<any>(`/api/configs/${encodeURIComponent(id)}`),
 };

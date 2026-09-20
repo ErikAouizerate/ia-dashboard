@@ -84,6 +84,24 @@ test("resolves a session's captured config", () => {
   expect(sources.capture("h1")).toBeNull();
 });
 
+test("lists configs grouped by configId with a no-config bucket", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  const byKey = Object.fromEntries(reader.listConfigs().map((c) => [c.configId ?? "none", c]));
+
+  expect(byKey.cid1.profile).toBe("muse-spark");
+  expect(byKey.cid1.sessions).toBe(1);
+  expect(byKey.cid1.totalCost).toBe(1);
+  expect(byKey.none.sessions).toBe(1);
+  expect(byKey.none.profile).toBeNull();
+
+  const detail = reader.getConfig("cid1");
+  expect(detail?.config).toEqual({ model: "m" });
+  expect(detail?.sessionList.map((s) => s.id)).toEqual(["v1"]);
+  expect(reader.getConfig("none")?.sessionList.map((s) => s.id)).toEqual(["h1"]);
+  expect(reader.getConfig("missing")).toBeNull();
+});
+
 test("ignores an unreadable generation without breaking the list", () => {
   const { hostDb, store } = setup();
   const broken = join(store, "devbox-broken");

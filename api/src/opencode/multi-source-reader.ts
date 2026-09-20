@@ -28,6 +28,44 @@ export interface SessionConfigSnapshot {
   config: unknown | null;
 }
 
+export const NO_CONFIG_ID = "none";
+
+export interface ConfigSession {
+  id: string;
+  title: string;
+  source: string;
+  model: string;
+  cost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  timeCreated: number;
+  projectName: string;
+}
+
+export interface ConfigModelStat {
+  model: string;
+  sessions: number;
+  totalCost: number;
+  tokensInput: number;
+  tokensOutput: number;
+}
+
+export interface ConfigSummary {
+  configId: string | null;
+  profile: string | null;
+  config: unknown | null;
+  sessions: number;
+  totalCost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  bySource: SourceAggregate[];
+  models: ConfigModelStat[];
+}
+
+export interface ConfigDetail extends ConfigSummary {
+  sessionList: ConfigSession[];
+}
+
 interface Capture {
   profile: string | null;
   agent: string | null;
@@ -196,7 +234,7 @@ export class MultiSourceReader implements SessionReader {
     for (const s of this.sources) s.reader.close();
   }
 
-  listSessions(filters: SessionListFilters = {}): SessionPage {
+  private collectAll(filters: SessionListFilters): OpenCodeSession[] {
     this.refresh();
     const merged = new Map<string, OpenCodeSession>();
     for (const s of this.sources) {
@@ -219,7 +257,11 @@ export class MultiSourceReader implements SessionReader {
         if (!existing || item.timeUpdated > existing.timeUpdated) merged.set(item.id, item);
       }
     }
-    const all = [...merged.values()].sort((a, b) => b.timeCreated - a.timeCreated);
+    return [...merged.values()].sort((a, b) => b.timeCreated - a.timeCreated);
+  }
+
+  listSessions(filters: SessionListFilters = {}): SessionPage {
+    const all = this.collectAll(filters);
     const page = Math.max(1, filters.page ?? 1);
     const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? 50));
     return {
@@ -420,5 +462,108 @@ export class MultiSourceReader implements SessionReader {
       }
     }
     return null;
+  }
+
+  listConfigs(): ConfigSummary[] {
+    return this.buildConfigs().map(({ sessionList, ...summary }) => summary);
+  }
+
+  getConfig(configId: string): ConfigDetail | null {
+    return (
+      this.buildConfigs().find((c) =>
+        configId === NO_CONFIG_ID ? c.configId === null : c.configId === configId,
+      ) ?? null
+    );
+  }
+
+  private buildConfigs(): ConfigDetail[] {
+    this.refresh();
+    // ponytail: full session scan per request; index configs if the history grows large
+    const captures = new Map<string, SessionConfigSnapshot>();
+    for (const s of this.sources) {
+      for (const [sessionId, c] of s.captures) {
+        captures.set(sessionId, {
+          ...c,
+          config: c.configId ? (s.configs.get(c.configId) ?? null) : null,
+        });
+      }
+    }
+
+    const map = new Map<string, ConfigDetail>();
+    for (const s of this.collectAll({})) {
+      const cap = captures.get(s.id) ?? null;
+      const key = cap?.configId ?? NO_CONFIG_ID;
+      const c: ConfigDetail = map.get(key) ?? {
+        configId: cap?.configId ?? null,
+        profile: null,
+        config: null,
+        sessions: 0,
+        totalCost: 0,
+        tokensInput: 0,
+        tokensOutput: 0,
+        bySource: [],
+        models: [],
+        sessionList: [],
+      };
+      if (!c.profile && cap?.profile) c.profile = cap.profile;
+      if (c.config == null && cap?.config != null) c.config = cap.config;
+      c.sessions++;
+      c.totalCost += s.cost;
+      c.tokensInput += s.tokensInput;
+      c.tokensOutput += s.tokensOutput;
+
+      const src = c.bySource.find((x) => x.source === s.source);
+      if (src) {
+        src.sessions++;
+        src.totalCost += s.cost;
+        src.tokensInput += s.tokensInput;
+        src.tokensOutput += s.tokensOutput;
+      } else {
+        c.bySource.push({
+          source: s.source,
+          sessions: 1,
+          totalCost: s.cost,
+          tokensInput: s.tokensInput,
+          tokensOutput: s.tokensOutput,
+        });
+      }
+
+      const model = c.models.find((x) => x.model === s.model);
+      if (model) {
+        model.sessions++;
+        model.totalCost += s.cost;
+        model.tokensInput += s.tokensInput;
+        model.tokensOutput += s.tokensOutput;
+      } else {
+        c.models.push({
+          model: s.model,
+          sessions: 1,
+          totalCost: s.cost,
+          tokensInput: s.tokensInput,
+          tokensOutput: s.tokensOutput,
+        });
+      }
+
+      c.sessionList.push({
+        id: s.id,
+        title: s.title,
+        source: s.source,
+        model: s.model,
+        cost: s.cost,
+        tokensInput: s.tokensInput,
+        tokensOutput: s.tokensOutput,
+        timeCreated: s.timeCreated,
+        projectName: s.projectName,
+      });
+
+      map.set(key, c);
+    }
+
+    const list = [...map.values()];
+    for (const c of list) {
+      c.models.sort((a, b) => b.totalCost - a.totalCost);
+      c.sessionList.sort((a, b) => b.timeCreated - a.timeCreated);
+    }
+    return list.sort((a, b) => b.totalCost - a.totalCost);
   }
 }

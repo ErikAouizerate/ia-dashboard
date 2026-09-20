@@ -3,6 +3,7 @@ import { apiMiddleware } from "./apiMiddleware";
 import { sessionsReducer } from "./sessions";
 import { dashboardReducer } from "./dashboard";
 import { projectsReducer } from "./projects";
+import { configsReducer } from "./configs";
 import { compareReducer } from "./compare";
 
 export const store = configureStore({
@@ -10,6 +11,7 @@ export const store = configureStore({
     sessions: sessionsReducer,
     dashboard: dashboardReducer,
     projects: projectsReducer,
+    configs: configsReducer,
     compare: compareReducer,
   },
   middleware: (gDM) =>

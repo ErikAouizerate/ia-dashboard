@@ -5,6 +5,7 @@ import { OpenCodeModule } from "./opencode/opencode.module";
 import { SessionsModule } from "./sessions/sessions.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { ConfigsModule } from "./configs/configs.module";
 import { HealthModule } from "./health/health.module";
 
 @Module({
@@ -15,6 +16,7 @@ import { HealthModule } from "./health/health.module";
     SessionsModule,
     ProjectsModule,
     DashboardModule,
+    ConfigsModule,
     HealthModule,
   ],
 })
