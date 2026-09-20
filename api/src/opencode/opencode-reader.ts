@@ -1,4 +1,4 @@
-import { mkdtempSync, copyFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, copyFileSync, existsSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import Database from "better-sqlite3";
@@ -55,10 +55,12 @@ const SESSION_COLS = `s.id, s.project_id, s.directory, s.path, s.parent_id, s.ti
 export class OpenCodeReader {
   private db: Database.Database | null = null;
   private tmpDir: string | null = null;
+  private openedSig: string | null = null;
 
   constructor(
     private readonly dbPath: string,
     public readonly source: string = "host",
+    private readonly watchChanges = false,
   ) {}
 
   open(): void {
@@ -75,6 +77,7 @@ export class OpenCodeReader {
       }
       this.db = new Database(dest);
     }
+    this.openedSig = this.fileSig();
   }
 
   listSessions(filters: SessionListFilters = {}): SessionPage {
@@ -595,8 +598,22 @@ export class OpenCodeReader {
   }
 
   private requireDb(): Database.Database {
+    // snapshots replace the DB with an atomic rename; an open handle would keep
+    // reading the old inode, so reopen when the file identity/mtime changed.
+    if (this.db && this.watchChanges && this.fileSig() !== this.openedSig) {
+      this.close();
+    }
     if (!this.db) this.open();
     return this.db!;
+  }
+
+  private fileSig(): string | null {
+    try {
+      const st = statSync(this.dbPath);
+      return `${st.ino}:${st.mtimeMs}:${st.size}`;
+    } catch {
+      return null;
+    }
   }
 
   private extractPartText(data: string): string | null {

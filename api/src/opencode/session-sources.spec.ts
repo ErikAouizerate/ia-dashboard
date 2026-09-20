@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -93,4 +93,20 @@ test("ignores an unreadable generation without breaking the list", () => {
   const sources = new SessionSources(hostDb, store);
   const page = sources.list({});
   expect(page.items.map((s) => s.id).sort()).toEqual(["h1", "v1"]);
+});
+
+test("picks up a new generation and an atomically replaced snapshot", () => {
+  const { hostDb, store } = setup();
+  const sources = new SessionSources(hostDb, store);
+  expect(sources.list({}).total).toBe(2);
+
+  const gen2 = join(store, "devbox-def");
+  mkdirSync(gen2, { recursive: true });
+  seedDb(join(gen2, "opencode.db"), "v2", 3000, "vm-session-2");
+  expect(sources.list({}).items.map((s) => s.id).sort()).toEqual(["h1", "v1", "v2"]);
+
+  const tmp = join(store, "devbox-abc", ".tmp.db");
+  seedDb(tmp, "v3", 4000, "vm-session-3");
+  renameSync(tmp, join(store, "devbox-abc", "opencode.db"));
+  expect(sources.list({}).items.map((s) => s.id)).toContain("v3");
 });
