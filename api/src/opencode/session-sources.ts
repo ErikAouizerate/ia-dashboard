@@ -47,9 +47,15 @@ export class SessionSources {
     for (const gen of readdirSync(storeDir)) {
       const dbPath = join(storeDir, gen, "opencode.db");
       if (!existsSync(dbPath)) continue;
+      const reader = new OpenCodeReader(dbPath, `vm:${gen}`);
+      try {
+        reader.listSessions({ pageSize: 1 });
+      } catch {
+        continue; // unreadable generation: ignore it, never break the whole list
+      }
       const source: Source = {
         source: `vm:${gen}`,
-        reader: new OpenCodeReader(dbPath, `vm:${gen}`),
+        reader,
         captures: new Map(),
         configs: new Map(),
       };
@@ -120,12 +126,16 @@ export class SessionSources {
       let pageNo = 1;
       let total = Infinity;
       const collected: OpenCodeSession[] = [];
-      while (collected.length < total && pageNo <= 100) {
-        const p = s.reader.listSessions({ ...filters, page: pageNo, pageSize: 200 });
-        total = p.total;
-        if (p.items.length === 0) break;
-        collected.push(...p.items);
-        pageNo++;
+      try {
+        while (collected.length < total && pageNo <= 100) {
+          const p = s.reader.listSessions({ ...filters, page: pageNo, pageSize: 200 });
+          total = p.total;
+          if (p.items.length === 0) break;
+          collected.push(...p.items);
+          pageNo++;
+        }
+      } catch {
+        continue; // a broken source must not take the whole list down
       }
       for (const item of collected) {
         const existing = merged.get(item.id);

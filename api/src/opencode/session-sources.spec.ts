@@ -84,3 +84,13 @@ test("resolves a session's reader and captured config", () => {
   expect(sources.capture("v1")?.profile).toBe("muse-spark");
   expect(sources.capture("h1")).toBeNull();
 });
+
+test("ignores an unreadable generation without breaking the list", () => {
+  const { hostDb, store } = setup();
+  const broken = join(store, "devbox-broken");
+  mkdirSync(broken, { recursive: true });
+  writeFileSync(join(broken, "opencode.db"), "not a sqlite database");
+  const sources = new SessionSources(hostDb, store);
+  const page = sources.list({});
+  expect(page.items.map((s) => s.id).sort()).toEqual(["h1", "v1"]);
+});
