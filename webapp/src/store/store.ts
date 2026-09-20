@@ -5,6 +5,7 @@ import { dashboardReducer } from "./dashboard";
 import { projectsReducer } from "./projects";
 import { configsReducer } from "./configs";
 import { compareReducer } from "./compare";
+import { sessionDetailReducer } from "./sessionDetail";
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
     projects: projectsReducer,
     configs: configsReducer,
     compare: compareReducer,
+    sessionDetail: sessionDetailReducer,
   },
   middleware: (gDM) =>
     gDM({ thunk: false, serializableCheck: false }).concat(apiMiddleware),

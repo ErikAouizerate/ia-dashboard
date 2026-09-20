@@ -174,7 +174,12 @@ export function SessionsView() {
               return (
                 <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="max-w-xs truncate px-3 py-2" title={s.title}>
-                    {s.title}
+                    <Link
+                      to={`/sessions/${s.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {s.title}
+                    </Link>
                   </td>
                   <td className="px-3 py-2">{s.projectName}</td>
                   <td className="px-3 py-2 text-gray-600">{s.source}</td>

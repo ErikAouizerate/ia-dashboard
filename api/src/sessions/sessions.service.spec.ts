@@ -66,6 +66,79 @@ describe("SessionsService", () => {
     expect(out?.projectId).toBe("p1");
   });
 
+  it("profile returns totals, byModel, tools, calls and tree", () => {
+    const reader = {
+      getSession: jest.fn((id: string) =>
+        id === "s3"
+          ? { id: "s3", title: "T", source: "host", directory: "/p/gateway" }
+          : { id, parentId: "s3", agent: "general", model: "m", cost: 0.5, source: "host" },
+      ),
+      getSessionTree: jest.fn().mockReturnValue(["s3", "s3-sub"]),
+      getSessionCalls: jest.fn().mockReturnValue([
+        {
+          sessionId: "s3",
+          timeCreated: 1,
+          cost: 1,
+          tokensInput: 10,
+          tokensOutput: 2,
+          tokensReasoning: 3,
+          cacheRead: 4,
+          cacheWrite: 5,
+          model: "m",
+          agent: "build",
+          mode: null,
+        },
+      ]),
+      getSessionSteps: jest.fn().mockReturnValue([
+        {
+          sessionId: "s3",
+          cost: 1,
+          tokensInput: 10,
+          tokensOutput: 2,
+          tokensReasoning: 3,
+          cacheRead: 4,
+          cacheWrite: 5,
+        },
+      ]),
+      getSessionToolUsage: jest
+        .fn()
+        .mockReturnValue([{ tool: "bash", count: 3, completed: 2, error: 1 }]),
+      capture: jest.fn().mockReturnValue({
+        profile: "muse-spark",
+        configId: "cid1",
+        config: { model: "m" },
+        offeredTools: ["bash"],
+      }),
+    };
+    const svc = new SessionsService(reader as any, mkDb([]) as any);
+    const p = svc.profile("s3");
+    expect(p?.profile).toBe("muse-spark");
+    expect(p?.config).toEqual({ model: "m" });
+    expect(p?.totals).toEqual({
+      cost: 1,
+      tokensInput: 10,
+      tokensOutput: 2,
+      tokensReasoning: 3,
+      cacheRead: 4,
+      cacheWrite: 5,
+      llmCalls: 1,
+      toolCalls: 3,
+      treeSize: 2,
+    });
+    expect(p?.byModel).toEqual([
+      { model: "m", cost: 1, tokensInput: 10, tokensOutput: 2, llmCalls: 1 },
+    ]);
+    expect(p?.tools).toEqual([{ tool: "bash", count: 3, completed: 2, error: 1 }]);
+    expect(p?.calls).toHaveLength(1);
+    expect(p?.tree).toHaveLength(2);
+  });
+
+  it("profile returns null for an unknown session", () => {
+    const reader = { getSession: jest.fn().mockReturnValue(null) };
+    const svc = new SessionsService(reader as any, mkDb([]) as any);
+    expect(svc.profile("nope")).toBeNull();
+  });
+
   it("meta returns grouped projects with synthetic ids", async () => {
     const db = mkDb([
       {

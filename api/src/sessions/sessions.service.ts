@@ -60,7 +60,7 @@ export class SessionsService {
     return { ...session, projectId: p?.id ?? null };
   }
 
-  private profile(id: string) {
+  profile(id: string) {
     const session = this.reader.getSession(id);
     if (!session) return null;
     const tree = this.reader.getSessionTree(id);
@@ -104,6 +104,7 @@ export class SessionsService {
       },
       byModel: [...byModel.values()].sort((x, y) => y.cost - x.cost),
       tools,
+      calls,
       tree: tree.map((tid) => {
         const s = this.reader.getSession(tid)!;
         return { sessionId: s.id, parentId: s.parentId, agent: s.agent, model: s.model, cost: s.cost };

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { DashboardView } from "./views/DashboardView";
 import { SessionsView } from "./views/SessionsView";
+import { SessionDetail } from "./views/SessionDetail";
 import { ProjectsView } from "./views/ProjectsView";
 import { ProjectDetail } from "./views/ProjectDetail";
 import { ConfigView } from "./views/ConfigView";
@@ -40,6 +41,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<DashboardView />} />
             <Route path="/sessions" element={<SessionsView />} />
+            <Route path="/sessions/:id" element={<SessionDetail />} />
             <Route path="/projects" element={<ProjectsView />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/configs" element={<ConfigView />} />

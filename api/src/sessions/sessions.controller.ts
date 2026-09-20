@@ -36,6 +36,13 @@ export class SessionsController {
     return result;
   }
 
+  @Get(":id/profile")
+  profile(@Param("id") id: string) {
+    const result = this.svc.profile(id);
+    if (!result) throw new NotFoundException("session not found");
+    return result;
+  }
+
   @Get(":id")
   findOne(@Param("id") id: string) {
     return this.svc.findOne(id);
