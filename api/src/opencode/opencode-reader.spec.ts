@@ -95,6 +95,63 @@ function buildFixture(dir: string): string {
   db.prepare(
     "INSERT INTO todo (session_id, content, status, priority, position, time_created, time_updated) VALUES (?,?,?,?,?,?,?)",
   ).run("s1", "Write provider", "in_progress", "high", 0, 1785702295000, 1785702295000);
+
+  const addAssistant = (id: string, sessionId: string, data: object, at: number) =>
+    db
+      .prepare(
+        "INSERT INTO message (id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?)",
+      )
+      .run(id, sessionId, JSON.stringify(data), at, at);
+  const addPart = (id: string, messageId: string, sessionId: string, data: object, at: number) =>
+    db
+      .prepare(
+        "INSERT INTO part (id, message_id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?,?)",
+      )
+      .run(id, messageId, sessionId, JSON.stringify(data), at, at);
+
+  addAssistant(
+    "as1",
+    "s1",
+    {
+      role: "assistant",
+      cost: 0.5,
+      modelID: "m-x",
+      providerID: "p",
+      agent: "build",
+      mode: "build",
+      tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 30, write: 0 } },
+    },
+    1785702300000,
+  );
+  addPart(
+    "sf1",
+    "as1",
+    "s1",
+    {
+      type: "step-finish",
+      cost: 0.5,
+      tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 30, write: 0 } },
+    },
+    1785702300000,
+  );
+  addPart("tp1", "as1", "s1", { type: "tool", tool: "bash", state: { status: "completed" } }, 1785702300001);
+  addPart("tp2", "as1", "s1", { type: "tool", tool: "read", state: { status: "error" } }, 1785702300002);
+  addAssistant(
+    "as2",
+    "s1-sub",
+    {
+      role: "assistant",
+      cost: 0.4,
+      modelID: "m-x",
+      providerID: "p",
+      agent: "general",
+      mode: "general",
+      tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+    },
+    1785702400000,
+  );
+  addPart("tp3", "as2", "s1-sub", { type: "tool", tool: "bash", state: { status: "completed" } }, 1785702400001);
+
   db.close();
   return path;
 }
@@ -270,6 +327,32 @@ describe("OpenCodeReader", () => {
 
   it("lists subagent ids of a parent", () => {
     expect(reader.getSubagentIds("s1")).toEqual(["s1-sub"]);
+  });
+
+  it("getSessionTree returns the parent and its descendants", () => {
+    expect(reader.getSessionTree("s1").sort()).toEqual(["s1", "s1-sub"]);
+  });
+
+  it("getSessionCalls parses assistant messages for the tree", () => {
+    const calls = reader.getSessionCalls(["s1", "s1-sub"]);
+    expect(calls).toHaveLength(2);
+    expect(calls.reduce((s, c) => s + c.cost, 0)).toBeCloseTo(0.9);
+    expect(calls[0].model).toBe("m-x");
+  });
+
+  it("getSessionSteps parses step-finish parts", () => {
+    const steps = reader.getSessionSteps(["s1", "s1-sub"]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].cost).toBeCloseTo(0.5);
+    expect(steps[0].cacheRead).toBe(30);
+  });
+
+  it("getSessionToolUsage counts tools, completed and error", () => {
+    const tools = reader.getSessionToolUsage(["s1", "s1-sub"]);
+    const bash = tools.find((t) => t.tool === "bash")!;
+    expect(bash.count).toBe(2);
+    expect(bash.completed).toBe(2);
+    expect(tools.find((t) => t.tool === "read")!.error).toBe(1);
   });
 
   it("lists distinct directories", () => {

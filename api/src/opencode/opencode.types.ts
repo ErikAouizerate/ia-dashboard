@@ -1,5 +1,6 @@
 export interface OpenCodeSession {
   id: string;
+  source: string;
   projectId: string;
   projectName: string;
   directory: string;
@@ -92,6 +93,37 @@ export interface ModelAggregate extends SessionAggregate {
 
 export interface DayAggregate extends SessionAggregate {
   day: string;
+}
+
+export interface SessionCall {
+  sessionId: string;
+  timeCreated: number;
+  cost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensReasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+  model: string;
+  agent: string | null;
+  mode: string | null;
+}
+
+export interface SessionStep {
+  sessionId: string;
+  cost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensReasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+export interface ToolUsage {
+  tool: string;
+  count: number;
+  completed: number;
+  error: number;
 }
 
 export class OpendbNotFoundError extends Error {

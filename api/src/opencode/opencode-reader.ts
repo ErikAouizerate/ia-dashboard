@@ -13,8 +13,11 @@ import {
   OpendbNotFoundError,
   SessionAggregate,
   SessionAnalysisInput,
+  SessionCall,
   SessionListFilters,
   SessionPage,
+  SessionStep,
+  ToolUsage,
 } from "./opencode.types";
 
 interface Row {
@@ -53,7 +56,10 @@ export class OpenCodeReader {
   private db: Database.Database | null = null;
   private tmpDir: string | null = null;
 
-  constructor(private readonly dbPath: string) {}
+  constructor(
+    private readonly dbPath: string,
+    public readonly source: string = "host",
+  ) {}
 
   open(): void {
     if (!existsSync(this.dbPath)) throw new OpendbNotFoundError(this.dbPath);
@@ -185,6 +191,112 @@ export class OpenCodeReader {
       .prepare("SELECT id FROM session WHERE parent_id = ? ORDER BY time_created")
       .all(parentId) as { id: string }[];
     return rows.map((r) => r.id);
+  }
+
+  getSessionTree(id: string): string[] {
+    const db = this.requireDb();
+    const rows = db
+      .prepare(
+        `WITH RECURSIVE tree(id) AS (
+           SELECT id FROM session WHERE id = @id
+           UNION ALL
+           SELECT s.id FROM session s JOIN tree t ON s.parent_id = t.id
+         )
+         SELECT id FROM tree`,
+      )
+      .all({ id }) as { id: string }[];
+    return rows.map((r) => r.id);
+  }
+
+  private inClause(
+    ids: string[],
+    prefix: string,
+  ): { sql: string; params: Record<string, unknown> } {
+    const params: Record<string, unknown> = {};
+    const sql = ids
+      .map((id, i) => {
+        params[`${prefix}${i}`] = id;
+        return `@${prefix}${i}`;
+      })
+      .join(", ");
+    return { sql, params };
+  }
+
+  getSessionCalls(ids: string[]): SessionCall[] {
+    if (ids.length === 0) return [];
+    const db = this.requireDb();
+    const { sql, params } = this.inClause(ids, "c");
+    const rows = db
+      .prepare(
+        `SELECT session_id, time_created, data FROM message
+         WHERE session_id IN (${sql}) AND json_extract(data, '$.role') = 'assistant'
+         ORDER BY time_created`,
+      )
+      .all(params) as { session_id: string; time_created: number; data: string }[];
+    return rows.map((r) => {
+      const d = JSON.parse(r.data) as any;
+      return {
+        sessionId: r.session_id,
+        timeCreated: r.time_created,
+        cost: d.cost ?? 0,
+        tokensInput: d.tokens?.input ?? 0,
+        tokensOutput: d.tokens?.output ?? 0,
+        tokensReasoning: d.tokens?.reasoning ?? 0,
+        cacheRead: d.tokens?.cache?.read ?? 0,
+        cacheWrite: d.tokens?.cache?.write ?? 0,
+        model: d.modelID ?? "",
+        agent: d.agent ?? null,
+        mode: d.mode ?? null,
+      };
+    });
+  }
+
+  getSessionSteps(ids: string[]): SessionStep[] {
+    if (ids.length === 0) return [];
+    const db = this.requireDb();
+    const { sql, params } = this.inClause(ids, "s");
+    const rows = db
+      .prepare(
+        `SELECT session_id, data FROM part
+         WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'step-finish'`,
+      )
+      .all(params) as { session_id: string; data: string }[];
+    return rows.map((r) => {
+      const d = JSON.parse(r.data) as any;
+      return {
+        sessionId: r.session_id,
+        cost: d.cost ?? 0,
+        tokensInput: d.tokens?.input ?? 0,
+        tokensOutput: d.tokens?.output ?? 0,
+        tokensReasoning: d.tokens?.reasoning ?? 0,
+        cacheRead: d.tokens?.cache?.read ?? 0,
+        cacheWrite: d.tokens?.cache?.write ?? 0,
+      };
+    });
+  }
+
+  getSessionToolUsage(ids: string[]): ToolUsage[] {
+    if (ids.length === 0) return [];
+    const db = this.requireDb();
+    const { sql, params } = this.inClause(ids, "t");
+    const rows = db
+      .prepare(
+        `SELECT json_extract(data, '$.tool') AS tool,
+                json_extract(data, '$.state.status') AS status
+         FROM part
+         WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'tool'`,
+      )
+      .all(params) as { tool: string | null; status: string | null }[];
+    const map = new Map<string, ToolUsage>();
+    for (const r of rows) {
+      if (!r.tool) continue;
+      const u = map.get(r.tool) ?? { tool: r.tool, count: 0, completed: 0, error: 0 };
+      u.count++;
+      if (r.status === "completed") u.completed++;
+      if (r.status === "error") u.error++;
+      map.set(r.tool, u);
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count);
   }
 
   listDirectories(): { directory: string; firstSeen: number; lastSeen: number }[] {
@@ -510,6 +622,7 @@ export class OpenCodeReader {
   private toSession(r: Row): OpenCodeSession {
     return {
       id: r.id,
+      source: this.source,
       projectId: r.project_id,
       projectName: this.projectName(r.project_id, r.project_name, r.project_worktree, r.directory),
       directory: r.directory,
