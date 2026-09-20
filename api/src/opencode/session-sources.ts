@@ -8,6 +8,7 @@ export interface SessionConfigSnapshot {
   agent: string | null;
   model: string | null;
   configId: string | null;
+  offeredTools: string[];
   config: unknown | null;
 }
 
@@ -16,7 +17,13 @@ interface Source {
   reader: OpenCodeReader;
   captures: Map<
     string,
-    { profile: string | null; agent: string | null; model: string | null; configId: string | null }
+    {
+      profile: string | null;
+      agent: string | null;
+      model: string | null;
+      configId: string | null;
+      offeredTools: string[];
+    }
   >;
   configs: Map<string, unknown>;
 }
@@ -64,6 +71,7 @@ export class SessionSources {
             agent: c.agent ?? null,
             model: c.model?.modelID ?? null,
             configId: c.configId ?? null,
+            offeredTools: c.offeredTools ?? [],
           });
         }
       }
@@ -95,8 +103,7 @@ export class SessionSources {
       const c = s.captures.get(sessionId);
       if (c) {
         return { ...c, config: c.configId ? (s.configs.get(c.configId) ?? null) : null };
-      }
-    }
+      }    }
     return null;
   }
 

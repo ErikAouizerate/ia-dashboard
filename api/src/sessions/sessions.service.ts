@@ -3,6 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { basename } from "node:path";
 import { SESSION_SOURCES } from "../opencode/opencode.module";
 import { SessionSources } from "../opencode/session-sources";
+import { offeredDiff } from "../opencode/offered";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { featureSessions, projects, sessionAnalyses } from "../db/schema";
 import { SessionListFilters } from "../opencode/opencode.types";
@@ -139,6 +140,7 @@ export class SessionsService {
       profile: capture?.profile ?? null,
       configId: capture?.configId ?? null,
       config: capture?.config ?? null,
+      offeredTools: capture?.offeredTools ?? [],
       totals: {
         cost: calls.reduce((acc, c) => acc + c.cost, 0),
         tokensInput: sum((s) => s.tokensInput),
@@ -171,6 +173,7 @@ export class SessionsService {
       toolMap.set(name, { name, a: av, b: bv, delta: bv - av });
     }
     const t = (p: typeof pa) => p.totals;
+    const offered = offeredDiff(pa.offeredTools, pb.offeredTools);
     return {
       a: pa,
       b: pb,
@@ -184,6 +187,8 @@ export class SessionsService {
         llmCalls: t(pb).llmCalls - t(pa).llmCalls,
         toolCalls: t(pb).toolCalls - t(pa).toolCalls,
         tools: [...toolMap.values()].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)),
+        offeredOnlyA: offered.onlyA,
+        offeredOnlyB: offered.onlyB,
       },
     };
   }

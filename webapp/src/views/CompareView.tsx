@@ -100,6 +100,17 @@ export function CompareView() {
               </tbody>
             </table>
           </Card>
+          {(data.delta.offeredOnlyA.length > 0 || data.delta.offeredOnlyB.length > 0) && (
+            <Card className="col-span-2 p-4">
+              <h3 className="mb-2 font-semibold text-gray-900">Outils offerts en plus</h3>
+              <p className="text-sm text-gray-600">
+                A uniquement : {data.delta.offeredOnlyA.join(", ") || "—"}
+              </p>
+              <p className="text-sm text-gray-600">
+                B uniquement : {data.delta.offeredOnlyB.join(", ") || "—"}
+              </p>
+            </Card>
+          )}
         </div>
       )}
     </div>
