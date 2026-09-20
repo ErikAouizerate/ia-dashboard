@@ -25,6 +25,24 @@ describe("sessionsReducer", () => {
     expect(s.filters.project).toBe("gateway");
   });
 
+  it("stores pagination info on SUCCESS", () => {
+    const s = sessionsReducer(undefined as any, {
+      type: "SESSIONS_LOAD_SUCCESS",
+      payload: { data: { items: [], total: 120, page: 2, pageSize: 50 } },
+    });
+    expect(s.page).toBe(2);
+    expect(s.pageSize).toBe(50);
+    expect(s.total).toBe(120);
+  });
+
+  it("changes page on SESSIONS_PAGE_SET", () => {
+    const s = sessionsReducer(undefined as any, {
+      type: "SESSIONS_PAGE_SET",
+      payload: { page: 3 },
+    });
+    expect(s.page).toBe(3);
+  });
+
   it("stores the error on ERROR", () => {
     const s = sessionsReducer(undefined as any, {
       type: "SESSIONS_LOAD_ERROR",

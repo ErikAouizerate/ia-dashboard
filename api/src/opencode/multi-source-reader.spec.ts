@@ -137,6 +137,28 @@ test("picks up a new generation and an atomically replaced snapshot", () => {
   expect(sources.listSessions({}).items.map((s) => s.id)).toContain("v3");
 });
 
+test("filters sessions by source", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listSessions({ source: "host" } as any).items.map((s) => s.id)).toEqual(["h1"]);
+  expect(reader.listSessions({ source: "vm:devbox-abc" } as any).items.map((s) => s.id)).toEqual([
+    "v1",
+  ]);
+});
+
+test("filters sessions by configId, with a no-config bucket", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listSessions({ configId: "cid1" } as any).items.map((s) => s.id)).toEqual(["v1"]);
+  expect(reader.listSessions({ configId: "none" } as any).items.map((s) => s.id)).toEqual(["h1"]);
+});
+
+test("lists its sources", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listSources().sort()).toEqual(["host", "vm:devbox-abc"]);
+});
+
 test("merges aggregates across sources and exposes bySource", () => {
   const { hostDb, store } = setup();
   const reader = new MultiSourceReader(hostDb, store);

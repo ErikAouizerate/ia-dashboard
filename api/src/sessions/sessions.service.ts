@@ -37,10 +37,15 @@ export class SessionsService {
     }
     const page = this.reader.listSessions(filters);
     const byDir = new Map((await this.db.select().from(projects)).map((p) => [p.directory, p.id]));
-    const items = page.items.map((i) => ({
-      ...i,
-      projectId: byDir.get(i.directory) ?? null,
-    }));
+    // ponytail: one capture() scan per row; batch it if a page ever feels slow
+    const items = page.items.map((i) => {
+      const cap = this.reader.capture(i.id);
+      return {
+        ...i,
+        projectId: byDir.get(i.directory) ?? null,
+        config: cap ? { profile: cap.profile, configId: cap.configId } : null,
+      };
+    });
     return { ...page, items };
   }
 
@@ -143,6 +148,11 @@ export class SessionsService {
     return {
       projects: groupProjects(rows).map((g) => ({ id: g.id, name: g.name })),
       models: this.reader.listModels(),
+      sources: this.reader.listSources(),
+      configs: this.reader.listConfigs().map((c) => ({
+        configId: c.configId,
+        profile: c.profile,
+      })),
     };
   }
 }

@@ -13,6 +13,8 @@ export class SessionsController {
       projectId: q.projectId,
       directory: q.directory,
       model: q.model,
+      source: q.source,
+      configId: q.configId,
       from: q.from,
       to: q.to,
       parentOnly: q.parentOnly === "true",

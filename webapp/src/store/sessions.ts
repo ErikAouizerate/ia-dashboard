@@ -4,6 +4,8 @@ export interface SessionRow {
   projectName: string;
   projectId: string | null;
   directory: string;
+  source: string;
+  config: { profile: string | null; configId: string | null } | null;
   isSubagent: boolean;
   model: string;
   agent: string | null;
@@ -19,7 +21,12 @@ interface SessionsState {
   page: number;
   pageSize: number;
   filters: Record<string, string>;
-  meta: { projects: { id: string; name: string }[]; models: string[] };
+  meta: {
+    projects: { id: string; name: string }[];
+    models: string[];
+    sources: string[];
+    configs: { configId: string | null; profile: string | null }[];
+  };
   loading: boolean;
   error: string | null;
 }
@@ -30,7 +37,7 @@ const initial: SessionsState = {
   page: 1,
   pageSize: 50,
   filters: {},
-  meta: { projects: [], models: [] },
+  meta: { projects: [], models: [], sources: [], configs: [] },
   loading: false,
   error: null,
 };
@@ -47,12 +54,16 @@ export function sessionsReducer(
         error: null,
         filters: action.payload.filters ?? {},
       };
+    case "SESSIONS_PAGE_SET":
+      return { ...state, page: Math.max(1, action.payload.page) };
     case "SESSIONS_LOAD_SUCCESS":
       return {
         ...state,
         loading: false,
         items: action.payload.data.items,
         total: action.payload.data.total,
+        page: action.payload.data.page ?? state.page,
+        pageSize: action.payload.data.pageSize ?? state.pageSize,
       };
     case "SESSIONS_LOAD_ERROR":
       return { ...state, loading: false, error: String(action.payload.error) };

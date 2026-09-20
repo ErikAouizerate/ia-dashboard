@@ -238,6 +238,7 @@ export class MultiSourceReader implements SessionReader {
     this.refresh();
     const merged = new Map<string, OpenCodeSession>();
     for (const s of this.sources) {
+      if (filters.source && s.source !== filters.source) continue;
       let pageNo = 1;
       let total = Infinity;
       const collected: OpenCodeSession[] = [];
@@ -257,7 +258,28 @@ export class MultiSourceReader implements SessionReader {
         if (!existing || item.timeUpdated > existing.timeUpdated) merged.set(item.id, item);
       }
     }
-    return [...merged.values()].sort((a, b) => b.timeCreated - a.timeCreated);
+    let all = [...merged.values()];
+    if (filters.configId) {
+      const configIds = this.configIds();
+      all = all.filter(
+        (s) => (configIds.get(s.id) ?? NO_CONFIG_ID) === filters.configId,
+      );
+    }
+    return all.sort((a, b) => b.timeCreated - a.timeCreated);
+  }
+
+  private configIds(): Map<string, string> {
+    this.refresh();
+    const map = new Map<string, string>();
+    for (const s of this.sources) {
+      for (const [sessionId, c] of s.captures) map.set(sessionId, c.configId ?? NO_CONFIG_ID);
+    }
+    return map;
+  }
+
+  listSources(): string[] {
+    this.refresh();
+    return this.sources.map((s) => s.source).sort();
   }
 
   listSessions(filters: SessionListFilters = {}): SessionPage {

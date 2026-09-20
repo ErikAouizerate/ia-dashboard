@@ -34,6 +34,8 @@ export interface SessionListFilters {
   directory?: string;
   directories?: string[];
   model?: string;
+  source?: string;
+  configId?: string;
   from?: string;
   to?: string;
   parentOnly?: boolean;

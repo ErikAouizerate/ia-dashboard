@@ -12,6 +12,9 @@ const sourcesMock = {
   }),
   getSession: jest.fn().mockReturnValue({ id: "s3", title: "T", directory: "/p/gateway" }),
   listModels: jest.fn().mockReturnValue(["deepseek-v4-flash"]),
+  capture: jest.fn().mockReturnValue({ profile: "muse-spark", configId: "cid1" }),
+  listSources: jest.fn().mockReturnValue(["host", "vm:devbox-abc"]),
+  listConfigs: jest.fn().mockReturnValue([{ configId: "cid1", profile: "muse-spark" }]),
 };
 
 const mkDb = (...results: unknown[]) => {
@@ -38,6 +41,21 @@ describe("SessionsService", () => {
     const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.items[0].projectId).toBe("p1");
+  });
+
+  it("list attaches the captured config to each item", async () => {
+    const db = mkDb([]);
+    const svc = new SessionsService(sourcesMock as any, db as any);
+    const page = await svc.list({ page: 1 });
+    expect(page.items[0].config).toEqual({ profile: "muse-spark", configId: "cid1" });
+  });
+
+  it("meta exposes the available sources and configs", async () => {
+    const db = mkDb([]);
+    const svc = new SessionsService(sourcesMock as any, db as any);
+    const meta = await svc.meta();
+    expect(meta.sources).toEqual(["host", "vm:devbox-abc"]);
+    expect(meta.configs).toEqual([{ configId: "cid1", profile: "muse-spark" }]);
   });
 
   it("findOne returns the session with its projectId", async () => {
