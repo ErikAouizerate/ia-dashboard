@@ -5,6 +5,7 @@ import { join } from "node:path";
 export interface AppConfig {
   databaseUrl: string;
   dbPath: string;
+  vmStoreDir: string;
   llmBaseUrl: string;
   llmApiKey: string;
   llmModel: string;
@@ -38,6 +39,9 @@ export const loadConfig = (): AppConfig => {
     dbPath:
       process.env.OPENCODE_DB_PATH ??
       join(homedir(), ".local", "share", "opencode", "opencode.db"),
+    vmStoreDir:
+      process.env.OPENCODE_VM_STORE_DIR ??
+      join(homedir(), ".local", "share", "opencode-vm"),
     llmBaseUrl: process.env.LLM_BASE_URL ?? "https://opencode.ai/zen/v1",
     llmApiKey: readAuthKey(authPath),
     llmModel: process.env.LLM_MODEL ?? "deepseek-v4-flash",
