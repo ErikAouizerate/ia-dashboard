@@ -17,12 +17,8 @@ services:
       - ./api:/app/api
       - ${OPENCODE_DATA_DIR:-${HOME}/.local/share/opencode}:/opencode:ro
     labels:
-      traefik.enable: "true"
-      traefik.docker.network: local-proxy
-      traefik.http.routers.ia-dashboard-api.rule: Host(`api.ia-dashboard.localhost`)
-      traefik.http.routers.ia-dashboard-api.entrypoints: web
-      traefik.http.routers.ia-dashboard-api.service: ia-dashboard-api
-      traefik.http.services.ia-dashboard-api.loadbalancer.server.port: "3000"
+      caddy: http://api.ia-dashboard.localhost
+      caddy.reverse_proxy: "{{upstreams 3000}}"
 
   webapp:
     build:
@@ -36,12 +32,8 @@ services:
     volumes:
       - ./webapp:/app/webapp
     labels:
-      traefik.enable: "true"
-      traefik.docker.network: local-proxy
-      traefik.http.routers.ia-dashboard.rule: Host(`ia-dashboard.localhost`)
-      traefik.http.routers.ia-dashboard.entrypoints: web
-      traefik.http.routers.ia-dashboard.service: ia-dashboard
-      traefik.http.services.ia-dashboard.loadbalancer.server.port: "5173"
+      caddy: http://ia-dashboard.localhost
+      caddy.reverse_proxy: "{{upstreams 5173}}"
 
 networks:
   proxy:
