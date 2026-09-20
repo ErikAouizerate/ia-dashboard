@@ -5,6 +5,7 @@ import { FeaturesView } from "./views/FeaturesView";
 import { FeatureDetail } from "./views/FeatureDetail";
 import { ProjectsView } from "./views/ProjectsView";
 import { ProjectDetail } from "./views/ProjectDetail";
+import { CompareView } from "./views/CompareView";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `block rounded-md px-3 py-1.5 text-sm font-medium ${
@@ -30,6 +31,9 @@ export function App() {
             <NavLink to="/features" className={navLinkClass}>
               Features
             </NavLink>
+            <NavLink to="/compare" className={navLinkClass}>
+              Comparer
+            </NavLink>
           </div>
         </aside>
         <main className="min-w-0 flex-1 overflow-y-auto p-6">
@@ -40,6 +44,7 @@ export function App() {
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/features" element={<FeaturesView />} />
             <Route path="/features/:id" element={<FeatureDetail />} />
+            <Route path="/compare" element={<CompareView />} />
           </Routes>
         </main>
       </div>
