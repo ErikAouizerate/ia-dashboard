@@ -21,6 +21,8 @@ export const api = {
   sessions: (qs: string) => apiFetch<any>(`/api/sessions${qs}`),
   session: (id: string) => apiFetch<any>(`/api/sessions/${id}`),
   meta: () => apiFetch<any>(`/api/sessions/meta`),
+  compare: (a: string, b: string) =>
+    apiFetch<any>(`/api/sessions/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
   features: () => apiFetch<any>(`/api/features`),
   feature: (id: string) => apiFetch<any>(`/api/features/${id}`),
   createFeature: (body: unknown) =>

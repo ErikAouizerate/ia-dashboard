@@ -5,6 +5,7 @@ import { featuresReducer } from "./features";
 import { dashboardReducer } from "./dashboard";
 import { projectsReducer } from "./projects";
 import { proposalsReducer } from "./proposals";
+import { compareReducer } from "./compare";
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
     dashboard: dashboardReducer,
     projects: projectsReducer,
     proposals: proposalsReducer,
+    compare: compareReducer,
   },
   middleware: (gDM) =>
     gDM({ thunk: false, serializableCheck: false }).concat(apiMiddleware),
