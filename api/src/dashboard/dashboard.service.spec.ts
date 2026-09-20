@@ -92,7 +92,7 @@ describe("DashboardService", () => {
       },
     ]);
     expect(out.timeByProject).toEqual([
-      { directory: "/p/gateway", name: "gateway", durationMs: 3600000, id: "p1" },
+      { directory: "/p/gateway", name: "gateway", durationMs: 3600000, id: "p1", bySource: [] },
     ]);
   });
 
@@ -169,7 +169,7 @@ describe("DashboardService", () => {
       },
     ]);
     expect(out.timeByProject).toEqual([
-      { directory: "/p/gateway", name: "gateway", durationMs: 5400000, id: "nominal:gateway" },
+      { directory: "/p/gateway", name: "gateway", durationMs: 5400000, id: "nominal:gateway", bySource: [] },
     ]);
   });
 
@@ -219,7 +219,7 @@ describe("DashboardService", () => {
       },
     ]);
     expect(out.timeByProject).toEqual([
-      { directory: "/p/unsynced", name: "unsynced", durationMs: 60000, id: "nominal:unsynced" },
+      { directory: "/p/unsynced", name: "unsynced", durationMs: 60000, id: "nominal:unsynced", bySource: [] },
     ]);
   });
 
@@ -233,5 +233,46 @@ describe("DashboardService", () => {
     expect(readerMock.aggregateByModel).toHaveBeenCalledWith({ from: 0 });
     expect(readerMock.aggregateByDay).toHaveBeenCalledWith({ from: 0 });
     expect(readerMock.timeByDirectory).toHaveBeenCalledWith({ from: 0 });
+  });
+
+  it("summary exposes the per-source breakdown per project", async () => {
+    const readerMock4 = {
+      ...readerMock,
+      aggregateByDirectory: jest.fn().mockReturnValue([
+        {
+          directory: "/p/gateway",
+          name: "gateway",
+          totalCost: 10,
+          tokensInput: 1,
+          tokensOutput: 1,
+          sessions: 2,
+          bySource: [
+            { source: "host", totalCost: 6, tokensInput: 1, tokensOutput: 1, sessions: 1 },
+            { source: "vm:devbox", totalCost: 4, tokensInput: 0, tokensOutput: 0, sessions: 1 },
+          ],
+        },
+      ]),
+      timeByDirectory: jest.fn().mockReturnValue([
+        {
+          directory: "/p/gateway",
+          durationMs: 3600000,
+          bySource: [
+            { source: "host", durationMs: 2000000 },
+            { source: "vm:devbox", durationMs: 1600000 },
+          ],
+        },
+      ]),
+    };
+    const db = mkDb([{ c: 0 }], [{ c: 0 }], []);
+    const svc = new DashboardService(readerMock4 as any, db as any);
+    const out = await svc.summary(7);
+    expect(out.byProject[0].bySource).toEqual([
+      { source: "host", totalCost: 6, tokensInput: 1, tokensOutput: 1, sessions: 1 },
+      { source: "vm:devbox", totalCost: 4, tokensInput: 0, tokensOutput: 0, sessions: 1 },
+    ]);
+    expect(out.timeByProject[0].bySource).toEqual([
+      { source: "host", durationMs: 2000000 },
+      { source: "vm:devbox", durationMs: 1600000 },
+    ]);
   });
 });

@@ -3,7 +3,7 @@ import { count, sql } from "drizzle-orm";
 import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { SessionReader } from "../opencode/opencode.types";
+import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
 import { features, projects, sessionAnalyses } from "../db/schema";
 import { groupProjects, ProjectGroupMeta } from "../projects/project-groups";
 import { nominalId, nominalName } from "../projects/nominal-name";
@@ -61,6 +61,7 @@ export class DashboardService {
         tokensInput: number;
         tokensOutput: number;
         sessions: number;
+        bySource: SourceAggregate[];
       }
     >();
     for (const a of this.reader.aggregateByDirectory({ from })) {
@@ -73,11 +74,13 @@ export class DashboardService {
         tokensInput: 0,
         tokensOutput: 0,
         sessions: 0,
+        bySource: [],
       };
       cur.totalCost += a.totalCost;
       cur.tokensInput += a.tokensInput;
       cur.tokensOutput += a.tokensOutput;
       cur.sessions += a.sessions;
+      cur.bySource.push(...(a.bySource ?? []));
       byProject.set(g.name, cur);
     }
 
@@ -117,19 +120,29 @@ export class DashboardService {
 
     const timeByProject = new Map<
       string,
-      { directory: string; name: string; durationMs: number; id: string }
+      {
+        directory: string;
+        name: string;
+        durationMs: number;
+        id: string;
+        bySource: { source: string; durationMs: number }[];
+      }
     >();
     for (const t of timeRows) {
       const g = dirToGroup.get(t.directory) ?? fallback(t.directory);
       const cur = timeByProject.get(g.name);
-      if (cur) cur.durationMs += t.durationMs;
-      else
+      if (cur) {
+        cur.durationMs += t.durationMs;
+        cur.bySource.push(...(t.bySource ?? []));
+      } else {
         timeByProject.set(g.name, {
           directory: g.directory,
           name: g.name,
           durationMs: t.durationMs,
           id: g.id,
+          bySource: [...(t.bySource ?? [])],
         });
+      }
     }
 
     return {

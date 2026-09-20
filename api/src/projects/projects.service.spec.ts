@@ -111,6 +111,7 @@ describe("ProjectsService", () => {
     expect(rows[0].totalCost).toBe(5);
     expect(rows[0].sessionCount).toBe(2);
     expect(rows[0].durationMs).toBe(7200000);
+    expect(rows[0].bySource).toEqual([]);
   });
 
   it("list groups versioned directories under the nominal name", async () => {
@@ -228,5 +229,42 @@ describe("ProjectsService", () => {
     ]);
     const svc = new ProjectsService(db as any, readerMock as any);
     await expect(svc.findOne("nominal:inconnu")).rejects.toThrow("Project not found");
+  });
+
+  it("list exposes the per-source breakdown per project", async () => {
+    const readerMock2 = {
+      ...readerMock,
+      aggregateByDirectory: jest.fn().mockReturnValue([
+        {
+          directory: "/home/user/gateway",
+          name: "gateway",
+          totalCost: 5,
+          tokensInput: 10,
+          tokensOutput: 20,
+          sessions: 2,
+          firstSeen: 1000,
+          lastSeen: 2000,
+          bySource: [
+            { source: "host", totalCost: 3, tokensInput: 6, tokensOutput: 12, sessions: 1 },
+            { source: "vm:devbox", totalCost: 2, tokensInput: 4, tokensOutput: 8, sessions: 1 },
+          ],
+        },
+      ]),
+    };
+    const projectRow = {
+      id: "p1",
+      name: "gateway",
+      directory: "/home/user/gateway",
+      stale: false,
+      firstSeen: new Date(1000),
+      lastSeen: new Date(2000),
+    };
+    const db = mkChain([], [], [], [projectRow]);
+    const svc = new ProjectsService(db as any, readerMock2 as any);
+    const rows = await svc.list();
+    expect(rows[0].bySource).toEqual([
+      { source: "host", totalCost: 3, tokensInput: 6, tokensOutput: 12, sessions: 1 },
+      { source: "vm:devbox", totalCost: 2, tokensInput: 4, tokensOutput: 8, sessions: 1 },
+    ]);
   });
 });

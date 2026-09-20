@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { desc, eq, inArray } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { SessionReader } from "../opencode/opencode.types";
+import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
 import { findProjectGroup, groupProjects } from "./project-groups";
@@ -64,6 +64,7 @@ export class ProjectsService {
         let tokensInput = 0;
         let tokensOutput = 0;
         let durationMs = 0;
+        const bySource: SourceAggregate[] = [];
         for (const d of g.directories) {
           const a = byDir.get(d);
           sessionCount += a?.sessions ?? 0;
@@ -71,8 +72,9 @@ export class ProjectsService {
           tokensInput += a?.tokensInput ?? 0;
           tokensOutput += a?.tokensOutput ?? 0;
           durationMs += times.get(d) ?? 0;
+          if (a) bySource.push(...(a.bySource ?? []));
         }
-        return { ...g, sessionCount, totalCost, tokensInput, tokensOutput, durationMs };
+        return { ...g, sessionCount, totalCost, tokensInput, tokensOutput, durationMs, bySource };
       })
       .sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
   }
@@ -90,6 +92,8 @@ export class ProjectsService {
     const totalCost = memberAgg.reduce((n, a) => n + a.totalCost, 0);
     const tokensInput = memberAgg.reduce((n, a) => n + a.tokensInput, 0);
     const tokensOutput = memberAgg.reduce((n, a) => n + a.tokensOutput, 0);
+    const bySource: SourceAggregate[] = [];
+    for (const a of memberAgg) bySource.push(...(a.bySource ?? []));
 
     const byModel = new Map<
       string,
@@ -146,6 +150,7 @@ export class ProjectsService {
       totalCost,
       tokensInput,
       tokensOutput,
+      bySource,
       ungroupedSessions: Math.max(0, sessions - linkedCount - proposedCount),
       byModel: sortedByModel,
       features: featRows,
