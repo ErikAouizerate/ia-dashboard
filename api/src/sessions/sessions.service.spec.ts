@@ -1,8 +1,7 @@
 import { SessionsService } from "./sessions.service";
 
-const readerMock = {
-  open: jest.fn(),
-  listSessions: jest.fn().mockReturnValue({
+const sourcesMock = {
+  list: jest.fn().mockReturnValue({
     items: [
       { id: "s1", directory: "/p/gateway", model: "deepseek-v4-flash" },
       { id: "s2", directory: "/p/gateway", model: "deepseek-v4-flash" },
@@ -12,7 +11,6 @@ const readerMock = {
     pageSize: 10,
   }),
   getSession: jest.fn().mockReturnValue({ id: "s3", title: "T", directory: "/p/gateway" }),
-  listProjects: jest.fn().mockReturnValue([{ id: "p1", name: "gateway" }]),
   listModels: jest.fn().mockReturnValue(["deepseek-v4-flash"]),
 };
 
@@ -29,7 +27,7 @@ const mkDb = (...results: unknown[]) => {
 describe("SessionsService", () => {
   it("returns annotated flag via annotatedMap", async () => {
     const db = mkDb([{ sessionId: "s1", featureId: "f1" }]);
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const map = await svc.annotatedMap(["s1", "s2"]);
     expect(map.s1).toBe("f1");
     expect(map.s2).toBeNull();
@@ -37,10 +35,10 @@ describe("SessionsService", () => {
 
   it("delegates list to the reader", async () => {
     const db = mkDb([], [], []);
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.total).toBe(2);
-    expect(readerMock.listSessions).toHaveBeenCalledWith({ page: 1 });
+    expect(sourcesMock.list).toHaveBeenCalledWith({ page: 1 });
   });
 
   it("list resolves projectId from directory and analysis status", async () => {
@@ -49,7 +47,7 @@ describe("SessionsService", () => {
       [], // analysisMap (sessionAnalyses rows)
       [{ id: "p1", directory: "/p/gateway" }], // projects lookup for directory->id
     );
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.items[0].projectId).toBe("p1");
     expect(page.items[0].analysedStatus).toBe("none");
@@ -58,7 +56,7 @@ describe("SessionsService", () => {
 
   it("findOne annotates the session when linked", async () => {
     const db = mkDb([{ featureId: "f9" }], []);
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const out = await svc.findOne("s3");
     expect(out?.annotated).toBe(true);
     expect(out?.featureId).toBe("f9");
@@ -66,7 +64,7 @@ describe("SessionsService", () => {
 
   it("analysisFor returns the stored analysis", async () => {
     const db = mkDb([{ sessionId: "s1", status: "done", summary: "x" }]);
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const a = await svc.analysisFor("s1");
     expect(a?.status).toBe("done");
   });
@@ -90,7 +88,7 @@ describe("SessionsService", () => {
         lastSeen: new Date(2500),
       },
     ]);
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     const meta = await svc.meta();
     expect(meta.projects).toEqual([{ id: "nominal:gateway", name: "gateway" }]);
     expect(meta.models).toEqual(["deepseek-v4-flash"]);
@@ -109,9 +107,9 @@ describe("SessionsService", () => {
         { id: "p2", directory: "/p/gateway_v2" },
       ], // byDir
     );
-    const svc = new SessionsService(readerMock as any, db as any);
+    const svc = new SessionsService(sourcesMock as any, db as any);
     await svc.list({ projectId: "nominal:gateway" });
-    expect(readerMock.listSessions).toHaveBeenCalledWith(
+    expect(sourcesMock.list).toHaveBeenCalledWith(
       expect.objectContaining({ directories: ["/p/gateway", "/p/gateway_v2"] }),
     );
   });

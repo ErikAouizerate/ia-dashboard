@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { eq, inArray } from "drizzle-orm";
 import { basename } from "node:path";
-import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SESSION_SOURCES } from "../opencode/opencode.module";
+import { SessionSources } from "../opencode/session-sources";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { featureSessions, projects, sessionAnalyses } from "../db/schema";
 import { SessionListFilters } from "../opencode/opencode.types";
@@ -14,7 +14,7 @@ type SessionAnalysisStatus = "none" | "pending" | "analyzing" | "done" | "error"
 @Injectable()
 export class SessionsService {
   constructor(
-    @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
+    @Inject(SESSION_SOURCES) private readonly sources: SessionSources,
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
   ) {}
 
@@ -60,7 +60,7 @@ export class SessionsService {
         filters.directory = p?.directory ?? filters.directory;
       }
     }
-    const page = this.reader.listSessions(filters);
+    const page = this.sources.list(filters);
     const [map, amap] = await Promise.all([
       this.annotatedMap(page.items.map((i) => i.id)),
       this.analysisMap(page.items.map((i) => i.id)),
@@ -86,7 +86,7 @@ export class SessionsService {
   }
 
   async findOne(id: string) {
-    const session = this.reader.getSession(id);
+    const session = this.sources.getSession(id);
     if (!session) return null;
     const rows = await this.db
       .select({ featureId: featureSessions.featureId })
@@ -107,6 +107,87 @@ export class SessionsService {
     };
   }
 
+  private profile(id: string) {
+    const reader = this.sources.readerFor(id);
+    if (!reader) return null;
+    const session = reader.getSession(id);
+    if (!session) return null;
+    const tree = reader.getSessionTree(id);
+    const calls = reader.getSessionCalls(tree);
+    const steps = reader.getSessionSteps(tree);
+    const tools = reader.getSessionToolUsage(tree);
+    const byModel = new Map<
+      string,
+      { model: string; cost: number; tokensInput: number; tokensOutput: number; llmCalls: number }
+    >();
+    for (const c of calls) {
+      const m =
+        byModel.get(c.model) ??
+        { model: c.model, cost: 0, tokensInput: 0, tokensOutput: 0, llmCalls: 0 };
+      m.cost += c.cost;
+      m.tokensInput += c.tokensInput;
+      m.tokensOutput += c.tokensOutput;
+      m.llmCalls++;
+      byModel.set(c.model, m);
+    }
+    const sum = (pick: (s: (typeof steps)[number]) => number) =>
+      steps.reduce((acc, s) => acc + pick(s), 0);
+    const capture = this.sources.capture(id);
+    return {
+      session,
+      source: reader.source,
+      profile: capture?.profile ?? null,
+      configId: capture?.configId ?? null,
+      config: capture?.config ?? null,
+      totals: {
+        cost: calls.reduce((acc, c) => acc + c.cost, 0),
+        tokensInput: sum((s) => s.tokensInput),
+        tokensOutput: sum((s) => s.tokensOutput),
+        tokensReasoning: sum((s) => s.tokensReasoning),
+        cacheRead: sum((s) => s.cacheRead),
+        cacheWrite: sum((s) => s.cacheWrite),
+        llmCalls: calls.length,
+        toolCalls: tools.reduce((acc, t) => acc + t.count, 0),
+        treeSize: tree.length,
+      },
+      byModel: [...byModel.values()].sort((x, y) => y.cost - x.cost),
+      tools,
+      tree: tree.map((tid) => {
+        const s = reader.getSession(tid)!;
+        return { sessionId: s.id, parentId: s.parentId, agent: s.agent, model: s.model, cost: s.cost };
+      }),
+    };
+  }
+
+  compare(a: string, b: string) {
+    const pa = this.profile(a);
+    const pb = this.profile(b);
+    if (!pa || !pb) return null;
+    const toolMap = new Map<string, { name: string; a: number; b: number; delta: number }>();
+    const all = new Set([...pa.tools.map((t) => t.tool), ...pb.tools.map((t) => t.tool)]);
+    for (const name of all) {
+      const av = pa.tools.find((t) => t.tool === name)?.count ?? 0;
+      const bv = pb.tools.find((t) => t.tool === name)?.count ?? 0;
+      toolMap.set(name, { name, a: av, b: bv, delta: bv - av });
+    }
+    const t = (p: typeof pa) => p.totals;
+    return {
+      a: pa,
+      b: pb,
+      delta: {
+        cost: t(pb).cost - t(pa).cost,
+        tokensInput: t(pb).tokensInput - t(pa).tokensInput,
+        tokensOutput: t(pb).tokensOutput - t(pa).tokensOutput,
+        tokensReasoning: t(pb).tokensReasoning - t(pa).tokensReasoning,
+        cacheRead: t(pb).cacheRead - t(pa).cacheRead,
+        cacheWrite: t(pb).cacheWrite - t(pa).cacheWrite,
+        llmCalls: t(pb).llmCalls - t(pa).llmCalls,
+        toolCalls: t(pb).toolCalls - t(pa).toolCalls,
+        tools: [...toolMap.values()].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)),
+      },
+    };
+  }
+
   async analysisFor(id: string) {
     const rows = await this.db
       .select()
@@ -119,7 +200,7 @@ export class SessionsService {
     const rows = await this.db.select().from(projects).where(eq(projects.stale, false));
     return {
       projects: groupProjects(rows).map((g) => ({ id: g.id, name: g.name })),
-      models: this.reader.listModels(),
+      models: this.sources.listModels(),
     };
   }
 }

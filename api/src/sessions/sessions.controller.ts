@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, NotFoundException, Param, Query } from "@nestjs/common";
 import { SessionsService } from "./sessions.service";
 import { SessionListFilters } from "../opencode/opencode.types";
 
@@ -27,6 +27,13 @@ export class SessionsController {
   @Get("meta")
   meta() {
     return this.svc.meta();
+  }
+
+  @Get("compare")
+  async compare(@Query("a") a: string, @Query("b") b: string) {
+    const result = await this.svc.compare(a, b);
+    if (!result) throw new NotFoundException("session not found");
+    return result;
   }
 
   @Get(":id/analysis")
