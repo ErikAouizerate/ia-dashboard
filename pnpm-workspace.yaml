@@ -5,6 +5,21 @@ minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 blockExoticSubdeps: true
 strictDepBuilds: true
+trustPolicy: no-downgrade
+# chokidar@4.0.3 and semver@6.3.1 have no provenance attestation while an
+# earlier version did (transitive deps of @nestjs/cli / @babel). Reviewed:
+# these are long-standing, popular packages, not a takeover, so they are
+# exempted from the no-downgrade rule.
+trustPolicyExclude:
+  - chokidar@4.0.3
+  - semver@6.3.1
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+overrides:
+  "qs@<6.16.0": "6.16.0"
+  "fast-uri@<3.1.6": "3.1.6"
+  "multer@<2.3.0": "2.3.0"
+  "js-yaml@>=3.0.0 <4.0.0": "3.15.2"
+  "js-yaml@>=4.0.0 <4.3.2": "4.3.2"
+  "@esbuild-kit/core-utils>esbuild": "0.25.12"
