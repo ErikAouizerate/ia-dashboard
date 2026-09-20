@@ -19,4 +19,9 @@ describe("dashboard reducer", () => {
     expect(state.loading).toBe(true);
     expect(state.periodDays).toBe(30);
   });
+
+  it("defaults to the all-time period", () => {
+    const state = dashboardReducer(undefined as any, { type: "@@INIT" });
+    expect(state.periodDays).toBe(0);
+  });
 });

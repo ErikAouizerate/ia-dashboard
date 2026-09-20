@@ -6,8 +6,9 @@ import { BarList } from "../components/ui/BarList";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { formatDuration } from "../lib/format";
+import { formatDuration, avgCostPerMillion } from "../lib/format";
 import { buildModelColorMap } from "../lib/modelColors";
+import { configKey, configLabel } from "../store/configs";
 import { isExcludedProject } from "../lib/excludedProjects";
 
 export function DashboardView() {
@@ -16,7 +17,9 @@ export function DashboardView() {
     (s: RootState) => s.dashboard,
   );
   const [days, setDays] = useState(periodDays);
-  const colorOf = summary ? buildModelColorMap(summary.byProject) : () => "";
+  const colorOf = summary
+    ? buildModelColorMap([{ models: summary.byModel }])
+    : () => "";
   const visibleByProject = summary
     ? summary.byProject.filter((r) => !isExcludedProject(r.name))
     : [];
@@ -81,6 +84,19 @@ export function DashboardView() {
               sub={days === 0 ? "Tout" : `${summary.periodDays} jours`}
             />
           </div>
+          {summary.byModel.length > 0 && (
+            <Card className="mb-4 p-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+                <span className="font-semibold text-gray-900">Modèles</span>
+                {summary.byModel.map((m) => (
+                  <span key={m.model} className="flex items-center gap-1.5">
+                    <span className={`inline-block h-3 w-3 rounded-sm ${colorOf(m.model)}`} />
+                    {m.model}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          )}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût par projet</h3>
@@ -132,6 +148,37 @@ export function DashboardView() {
                   { value: r.tokensInput, className: "bg-blue-500" },
                   { value: r.tokensOutput, className: "bg-emerald-400" },
                 ]}
+              />
+            </Card>
+            <Card className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût moyen / 1M tokens par config</h3>
+              <BarList
+                rows={summary.byConfig}
+                valueOf={(r) => avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput)}
+                labelOf={(r) => configLabel(r)}
+                to={(r) => `/configs/${configKey(r)}`}
+                valueSuffix="€/M"
+                stackOf={(r) => {
+                  const tokens = r.tokensInput + r.tokensOutput;
+                  const avg = avgCostPerMillion(r.totalCost, tokens);
+                  return r.models.map((m: any) => {
+                    const mt = m.tokensInput + m.tokensOutput;
+                    return {
+                      value: tokens > 0 ? avg * (mt / tokens) : 0,
+                      className: colorOf(m.model),
+                      title: `${m.model}: ${avgCostPerMillion(m.totalCost, mt).toFixed(2)} €/M`,
+                    };
+                  });
+                }}
+              />
+            </Card>
+            <Card className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût moyen / 1M tokens par modèle</h3>
+              <BarList
+                rows={summary.byModel}
+                valueOf={(r) => avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput)}
+                labelOf={(r) => r.model}
+                valueSuffix="€/M"
               />
             </Card>
             <Card className="p-4">

@@ -5,3 +5,7 @@ export function formatDuration(ms: number): string {
   const m = minutes % 60;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
+
+export function avgCostPerMillion(cost: number, tokens: number): number {
+  return tokens > 0 ? (cost / tokens) * 1_000_000 : 0;
+}

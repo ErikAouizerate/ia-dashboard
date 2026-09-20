@@ -64,6 +64,25 @@ const summary = {
       tokensOutput: 2000,
     },
   ],
+  byConfig: [
+    {
+      configId: "cid1",
+      profile: "muse-spark",
+      sessions: 2,
+      totalCost: 6,
+      tokensInput: 500000,
+      tokensOutput: 500000,
+      models: [
+        {
+          model: "deepseek-v4-flash",
+          sessions: 2,
+          totalCost: 6,
+          tokensInput: 500000,
+          tokensOutput: 500000,
+        },
+      ],
+    },
+  ],
   byDay: [{ day: "2026-08-27", totalCost: 12.34, sessions: 42 }],
   timeByProject: [
     { directory: "/p/gateway", name: "gateway", durationMs: 5400000, id: "p1" },
@@ -123,6 +142,21 @@ describe("DashboardView", () => {
     // Tokens par projet en 2e position, juste après Coût par projet
     expect(html.indexOf("Coût par projet")).toBeLessThan(html.indexOf("Tokens par projet"));
     expect(html.indexOf("Tokens par projet")).toBeLessThan(html.indexOf("Coût par modèle"));
+  });
+
+  it("renders a global model legend and average token cost per config and per model", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore(summary)}>
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("Modèles");
+    expect(html).toContain("Coût moyen / 1M tokens par config");
+    expect(html).toContain("Coût moyen / 1M tokens par modèle");
+    expect(html).toContain("muse-spark");
+    expect(html).toContain("€/M");
   });
 
   it("renders a Tout button for the all-time filter", () => {

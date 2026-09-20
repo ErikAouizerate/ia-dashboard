@@ -37,6 +37,29 @@ const readerMock = {
   timeByDirectory: jest.fn().mockReturnValue([
     { directory: "/p/gateway", durationMs: 3600000 },
   ]),
+  listConfigs: jest.fn().mockReturnValue([
+    {
+      configId: "cid1",
+      profile: "muse-spark",
+      config: { model: "m" },
+      sessions: 2,
+      totalCost: 6,
+      tokensInput: 500,
+      tokensOutput: 500,
+      bySource: [
+        { source: "host", sessions: 2, totalCost: 6, tokensInput: 500, tokensOutput: 500 },
+      ],
+      models: [
+        {
+          model: "deepseek-v4-flash",
+          sessions: 2,
+          totalCost: 6,
+          tokensInput: 500,
+          tokensOutput: 500,
+        },
+      ],
+    },
+  ]),
 };
 
 const mkDb = (...results: unknown[]) => {
@@ -219,6 +242,32 @@ describe("DashboardService", () => {
     expect(readerMock.aggregateByModel).toHaveBeenCalledWith({ from: 0 });
     expect(readerMock.aggregateByDay).toHaveBeenCalledWith({ from: 0 });
     expect(readerMock.timeByDirectory).toHaveBeenCalledWith({ from: 0 });
+  });
+
+  it("summary exposes configs as a period-filtered breakdown", async () => {
+    const db = mkDb([]);
+    const svc = new DashboardService(readerMock as any, db as any);
+    const out = await svc.summary(0);
+    expect(readerMock.listConfigs).toHaveBeenCalledWith({ from: 0 });
+    expect(out.byConfig).toEqual([
+      {
+        configId: "cid1",
+        profile: "muse-spark",
+        sessions: 2,
+        totalCost: 6,
+        tokensInput: 500,
+        tokensOutput: 500,
+        models: [
+          {
+            model: "deepseek-v4-flash",
+            sessions: 2,
+            totalCost: 6,
+            tokensInput: 500,
+            tokensOutput: 500,
+          },
+        ],
+      },
+    ]);
   });
 
   it("summary exposes the per-source breakdown per project", async () => {

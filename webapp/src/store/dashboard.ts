@@ -27,6 +27,21 @@ export interface DashboardSummary {
     tokensInput: number;
     tokensOutput: number;
   }[];
+  byConfig: {
+    configId: string | null;
+    profile: string | null;
+    sessions: number;
+    totalCost: number;
+    tokensInput: number;
+    tokensOutput: number;
+    models: {
+      model: string;
+      sessions: number;
+      totalCost: number;
+      tokensInput: number;
+      tokensOutput: number;
+    }[];
+  }[];
   byDay: { day: string; totalCost: number; sessions: number }[];
   timeByProject: { directory: string; name: string; durationMs: number; id: string | null }[];
 }
@@ -40,7 +55,7 @@ interface DashboardState {
 
 const initial: DashboardState = {
   summary: null,
-  periodDays: 7,
+  periodDays: 0,
   loading: false,
   error: null,
 };

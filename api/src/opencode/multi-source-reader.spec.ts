@@ -102,6 +102,15 @@ test("lists configs grouped by configId with a no-config bucket", () => {
   expect(reader.getConfig("missing")).toBeNull();
 });
 
+test("filters configs to sessions created after a period start", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  // h1 created at 900, v1 at 1900 — from 1500 keeps only the vm config
+  const configs = reader.listConfigs({ from: 1500 });
+  expect(configs.map((c) => c.configId)).toEqual(["cid1"]);
+  expect(configs[0].sessions).toBe(1);
+});
+
 test("ignores an unreadable generation without breaking the list", () => {
   const { hostDb, store } = setup();
   const broken = join(store, "devbox-broken");

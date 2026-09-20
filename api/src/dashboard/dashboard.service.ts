@@ -2,7 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
+import { SourceAggregate } from "../opencode/opencode.types";
+import { MultiSourceReader } from "../opencode/multi-source-reader";
 import { projects } from "../db/schema";
 import { groupProjects, ProjectGroupMeta } from "../projects/project-groups";
 import { nominalId, nominalName } from "../projects/nominal-name";
@@ -10,7 +11,7 @@ import { nominalId, nominalName } from "../projects/nominal-name";
 @Injectable()
 export class DashboardService {
   constructor(
-    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
+    @Inject(OPENCODE_READER) private readonly reader: MultiSourceReader,
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
   ) {}
 
@@ -147,6 +148,15 @@ export class DashboardService {
         .sort((a, b) => b.totalCost - a.totalCost),
       byModel: this.reader.aggregateByModel({ from }),
       byDay: this.reader.aggregateByDay({ from }),
+      byConfig: this.reader.listConfigs({ from }).map((c) => ({
+        configId: c.configId,
+        profile: c.profile,
+        sessions: c.sessions,
+        totalCost: c.totalCost,
+        tokensInput: c.tokensInput,
+        tokensOutput: c.tokensOutput,
+        models: c.models,
+      })),
       timeByProject: [...timeByProject.values()].sort(
         (a, b) => b.durationMs - a.durationMs,
       ),
