@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { desc, eq, inArray } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SessionReader } from "../opencode/opencode.types";
 import { features, featureProposals, featureSessions, projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
 import { findProjectGroup, groupProjects } from "./project-groups";
@@ -11,7 +11,7 @@ import { findProjectGroup, groupProjects } from "./project-groups";
 export class ProjectsService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
+    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
   ) {}
 
   async syncProjects(): Promise<void> {

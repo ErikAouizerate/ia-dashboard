@@ -3,7 +3,7 @@ import { count, sql } from "drizzle-orm";
 import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SessionReader } from "../opencode/opencode.types";
 import { features, projects, sessionAnalyses } from "../db/schema";
 import { groupProjects, ProjectGroupMeta } from "../projects/project-groups";
 import { nominalId, nominalName } from "../projects/nominal-name";
@@ -11,7 +11,7 @@ import { nominalId, nominalName } from "../projects/nominal-name";
 @Injectable()
 export class DashboardService {
   constructor(
-    @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
+    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
   ) {}
 

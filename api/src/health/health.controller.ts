@@ -1,10 +1,10 @@
 import { Controller, Get, Inject } from "@nestjs/common";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SessionReader } from "../opencode/opencode.types";
 
 @Controller("health")
 export class HealthController {
-  constructor(@Inject(OPENCODE_READER) private readonly reader: OpenCodeReader) {}
+  constructor(@Inject(OPENCODE_READER) private readonly reader: SessionReader) {}
 
   @Get()
   health() {

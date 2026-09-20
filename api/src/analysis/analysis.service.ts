@@ -2,7 +2,7 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, eq, inArray } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SessionReader } from "../opencode/opencode.types";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
 import { featureProposals, features, featureSessions, projects, sessionAnalyses } from "../db/schema";
@@ -27,7 +27,7 @@ export class AnalysisService {
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
+    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
     @Inject(LLM_CLIENT) private readonly llm: LlmClient,
   ) {}
 
@@ -68,7 +68,7 @@ export class AnalysisService {
 
   private async doAnalyze(
     sessionId: string,
-    input: NonNullable<ReturnType<OpenCodeReader["getSessionAnalysisInput"]>>,
+    input: NonNullable<ReturnType<SessionReader["getSessionAnalysisInput"]>>,
   ) {
     const session = this.reader.getSession(sessionId);
     if (!session || session.isSubagent) {

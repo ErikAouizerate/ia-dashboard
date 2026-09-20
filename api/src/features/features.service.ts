@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { and, count, desc, eq, inArray, sum } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
-import { OpenCodeReader } from "../opencode/opencode-reader";
+import { SessionReader } from "../opencode/opencode.types";
 import { LLM_CLIENT } from "../llm/llm.module";
 import { LlmClient } from "../llm/llm-client";
 import { features, featureSessions, projects, sessionAnalyses } from "../db/schema";
@@ -13,7 +13,7 @@ import { CreateFeatureDto, UpdateFeatureDto, createFeatureSchema, updateFeatureS
 export class FeaturesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(OPENCODE_READER) private readonly reader: OpenCodeReader,
+    @Inject(OPENCODE_READER) private readonly reader: SessionReader,
     @Inject(LLM_CLIENT) private readonly llm: LlmClient,
   ) {}
 
