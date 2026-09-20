@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { eq, inArray } from "drizzle-orm";
 import { basename } from "node:path";
-import { SESSION_SOURCES } from "../opencode/opencode.module";
-import { SessionSources } from "../opencode/session-sources";
+import { OPENCODE_READER } from "../opencode/opencode.module";
+import { MultiSourceReader } from "../opencode/multi-source-reader";
 import { offeredDiff } from "../opencode/offered";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { featureSessions, projects, sessionAnalyses } from "../db/schema";
@@ -15,7 +15,7 @@ type SessionAnalysisStatus = "none" | "pending" | "analyzing" | "done" | "error"
 @Injectable()
 export class SessionsService {
   constructor(
-    @Inject(SESSION_SOURCES) private readonly sources: SessionSources,
+    @Inject(OPENCODE_READER) private readonly reader: MultiSourceReader,
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
   ) {}
 
@@ -61,7 +61,7 @@ export class SessionsService {
         filters.directory = p?.directory ?? filters.directory;
       }
     }
-    const page = this.sources.list(filters);
+    const page = this.reader.listSessions(filters);
     const [map, amap] = await Promise.all([
       this.annotatedMap(page.items.map((i) => i.id)),
       this.analysisMap(page.items.map((i) => i.id)),
@@ -87,7 +87,7 @@ export class SessionsService {
   }
 
   async findOne(id: string) {
-    const session = this.sources.getSession(id);
+    const session = this.reader.getSession(id);
     if (!session) return null;
     const rows = await this.db
       .select({ featureId: featureSessions.featureId })
@@ -109,14 +109,12 @@ export class SessionsService {
   }
 
   private profile(id: string) {
-    const reader = this.sources.readerFor(id);
-    if (!reader) return null;
-    const session = reader.getSession(id);
+    const session = this.reader.getSession(id);
     if (!session) return null;
-    const tree = reader.getSessionTree(id);
-    const calls = reader.getSessionCalls(tree);
-    const steps = reader.getSessionSteps(tree);
-    const tools = reader.getSessionToolUsage(tree);
+    const tree = this.reader.getSessionTree(id);
+    const calls = this.reader.getSessionCalls(tree);
+    const steps = this.reader.getSessionSteps(tree);
+    const tools = this.reader.getSessionToolUsage(tree);
     const byModel = new Map<
       string,
       { model: string; cost: number; tokensInput: number; tokensOutput: number; llmCalls: number }
@@ -133,10 +131,10 @@ export class SessionsService {
     }
     const sum = (pick: (s: (typeof steps)[number]) => number) =>
       steps.reduce((acc, s) => acc + pick(s), 0);
-    const capture = this.sources.capture(id);
+    const capture = this.reader.capture(id);
     return {
       session,
-      source: reader.source,
+      source: session.source,
       profile: capture?.profile ?? null,
       configId: capture?.configId ?? null,
       config: capture?.config ?? null,
@@ -155,7 +153,7 @@ export class SessionsService {
       byModel: [...byModel.values()].sort((x, y) => y.cost - x.cost),
       tools,
       tree: tree.map((tid) => {
-        const s = reader.getSession(tid)!;
+        const s = this.reader.getSession(tid)!;
         return { sessionId: s.id, parentId: s.parentId, agent: s.agent, model: s.model, cost: s.cost };
       }),
     };
@@ -205,7 +203,7 @@ export class SessionsService {
     const rows = await this.db.select().from(projects).where(eq(projects.stale, false));
     return {
       projects: groupProjects(rows).map((g) => ({ id: g.id, name: g.name })),
-      models: this.sources.listModels(),
+      models: this.reader.listModels(),
     };
   }
 }

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { SessionSources } from "./session-sources";
+import { MultiSourceReader } from "./multi-source-reader";
 
 function seedDb(path: string, sessionId: string, timeUpdated: number, title: string) {
   const db = new Database(path);
@@ -68,19 +68,18 @@ function setup() {
 
 test("lists host and vm sessions with their source, dedup by id keeping newest", () => {
   const { hostDb, store } = setup();
-  const sources = new SessionSources(hostDb, store);
-  const page = sources.list({});
+  const sources = new MultiSourceReader(hostDb, store);
+  const page = sources.listSessions({});
   const byId = Object.fromEntries(page.items.map((s) => [s.id, s]));
   expect(byId.h1.source).toBe("host");
   expect(byId.v1.source).toBe("vm:devbox-abc");
-  // newest first
   expect(page.items[0].id).toBe("v1");
 });
 
-test("resolves a session's reader and captured config", () => {
+test("resolves a session's captured config", () => {
   const { hostDb, store } = setup();
-  const sources = new SessionSources(hostDb, store);
-  expect(sources.readerFor("v1")?.source).toBe("vm:devbox-abc");
+  const sources = new MultiSourceReader(hostDb, store);
+  expect(sources.getSession("v1")?.source).toBe("vm:devbox-abc");
   expect(sources.capture("v1")?.profile).toBe("muse-spark");
   expect(sources.capture("h1")).toBeNull();
 });
@@ -90,23 +89,46 @@ test("ignores an unreadable generation without breaking the list", () => {
   const broken = join(store, "devbox-broken");
   mkdirSync(broken, { recursive: true });
   writeFileSync(join(broken, "opencode.db"), "not a sqlite database");
-  const sources = new SessionSources(hostDb, store);
-  const page = sources.list({});
+  const sources = new MultiSourceReader(hostDb, store);
+  const page = sources.listSessions({});
   expect(page.items.map((s) => s.id).sort()).toEqual(["h1", "v1"]);
 });
 
 test("picks up a new generation and an atomically replaced snapshot", () => {
   const { hostDb, store } = setup();
-  const sources = new SessionSources(hostDb, store);
-  expect(sources.list({}).total).toBe(2);
+  const sources = new MultiSourceReader(hostDb, store);
+  expect(sources.listSessions({}).total).toBe(2);
 
   const gen2 = join(store, "devbox-def");
   mkdirSync(gen2, { recursive: true });
   seedDb(join(gen2, "opencode.db"), "v2", 3000, "vm-session-2");
-  expect(sources.list({}).items.map((s) => s.id).sort()).toEqual(["h1", "v1", "v2"]);
+  expect(sources.listSessions({}).items.map((s) => s.id).sort()).toEqual(["h1", "v1", "v2"]);
 
   const tmp = join(store, "devbox-abc", ".tmp.db");
   seedDb(tmp, "v3", 4000, "vm-session-3");
   renameSync(tmp, join(store, "devbox-abc", "opencode.db"));
-  expect(sources.list({}).items.map((s) => s.id)).toContain("v3");
+  expect(sources.listSessions({}).items.map((s) => s.id)).toContain("v3");
+});
+
+test("merges aggregates across sources and exposes bySource", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+
+  const byDir = reader.aggregateByDirectory({});
+  const app = byDir.filter((r) => r.directory === "/w/app");
+  expect(app).toHaveLength(1);
+  expect(app[0].sessions).toBe(2);
+  expect(app[0].totalCost).toBe(2);
+  expect(app[0].bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+
+  const all = reader.aggregateAll({});
+  expect(all.sessions).toBe(2);
+  expect(all.bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+
+  const byModel = reader.aggregateByModel({});
+  expect(byModel).toHaveLength(1);
+  expect(byModel[0].sessions).toBe(2);
+
+  expect(reader.getSessionTree("v1")).toEqual(["v1"]);
+  expect(reader.getSession("v1")?.source).toBe("vm:devbox-abc");
 });

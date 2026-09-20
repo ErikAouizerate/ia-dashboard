@@ -1,7 +1,7 @@
 import { SessionsService } from "./sessions.service";
 
 const sourcesMock = {
-  list: jest.fn().mockReturnValue({
+  listSessions: jest.fn().mockReturnValue({
     items: [
       { id: "s1", directory: "/p/gateway", model: "deepseek-v4-flash" },
       { id: "s2", directory: "/p/gateway", model: "deepseek-v4-flash" },
@@ -38,7 +38,7 @@ describe("SessionsService", () => {
     const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.total).toBe(2);
-    expect(sourcesMock.list).toHaveBeenCalledWith({ page: 1 });
+    expect(sourcesMock.listSessions).toHaveBeenCalledWith({ page: 1 });
   });
 
   it("list resolves projectId from directory and analysis status", async () => {
@@ -109,7 +109,7 @@ describe("SessionsService", () => {
     );
     const svc = new SessionsService(sourcesMock as any, db as any);
     await svc.list({ projectId: "nominal:gateway" });
-    expect(sourcesMock.list).toHaveBeenCalledWith(
+    expect(sourcesMock.listSessions).toHaveBeenCalledWith(
       expect.objectContaining({ directories: ["/p/gateway", "/p/gateway_v2"] }),
     );
   });
