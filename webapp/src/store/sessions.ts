@@ -11,10 +11,6 @@ export interface SessionRow {
   tokensInput: number;
   tokensOutput: number;
   timeCreated: number;
-  annotated: boolean;
-  featureId: string | null;
-  analysedStatus: "none" | "pending" | "analyzing" | "done" | "error";
-  analysed: boolean;
 }
 
 interface SessionsState {

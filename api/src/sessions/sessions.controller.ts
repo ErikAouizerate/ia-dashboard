@@ -15,8 +15,6 @@ export class SessionsController {
       model: q.model,
       from: q.from,
       to: q.to,
-      annotated: q.annotated as SessionListFilters["annotated"],
-      analysed: q.analysed,
       parentOnly: q.parentOnly === "true",
       page: q.page ? Number(q.page) : undefined,
       pageSize: q.pageSize ? Number(q.pageSize) : undefined,
@@ -34,11 +32,6 @@ export class SessionsController {
     const result = await this.svc.compare(a, b);
     if (!result) throw new NotFoundException("session not found");
     return result;
-  }
-
-  @Get(":id/analysis")
-  analysis(@Param("id") id: string) {
-    return this.svc.analysisFor(id);
   }
 
   @Get(":id")

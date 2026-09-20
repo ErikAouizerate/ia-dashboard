@@ -1,9 +1,9 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
-import { features, featureProposals, featureSessions, projects } from "../db/schema";
+import { projects } from "../db/schema";
 import { DirectoryAggregate } from "../opencode/opencode.types";
 import { findProjectGroup, groupProjects } from "./project-groups";
 
@@ -115,29 +115,6 @@ export class ProjectsService {
     }
     const sortedByModel = [...byModel.values()].sort((a, b) => b.totalCost - a.totalCost);
 
-    const memberIds = group.rows.map((r) => r.id);
-    const featRows = await this.db
-      .select()
-      .from(features)
-      .where(inArray(features.projectId, memberIds))
-      .orderBy(desc(features.updatedAt));
-    const propRows = await this.db
-      .select()
-      .from(featureProposals)
-      .where(inArray(featureProposals.projectId, memberIds))
-      .orderBy(desc(featureProposals.createdAt));
-    const linkedCount =
-      featRows.length === 0
-        ? 0
-        : (
-            await this.db
-              .select({ sessionId: featureSessions.sessionId })
-              .from(featureSessions)
-              .where(inArray(featureSessions.featureId, featRows.map((f) => f.id)))
-          ).length;
-    const proposedCount = propRows
-      .filter((p) => p.status === "pending")
-      .reduce((n, p) => n + p.sessionIds.length, 0);
     return {
       id: group.meta.id,
       name: group.meta.name,
@@ -151,10 +128,7 @@ export class ProjectsService {
       tokensInput,
       tokensOutput,
       bySource,
-      ungroupedSessions: Math.max(0, sessions - linkedCount - proposedCount),
       byModel: sortedByModel,
-      features: featRows,
-      proposals: propRows,
     };
   }
 }

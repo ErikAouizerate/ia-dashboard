@@ -50,27 +50,21 @@ const mkDb = (...results: unknown[]) => {
 };
 
 describe("DashboardService", () => {
-  it("summary aggregates live metrics plus analysed/feature counts", async () => {
-    const db = mkDb(
-      [{ c: 3 }], // analysed count
-      [{ c: 5 }], // feature count
-      [
-        {
-          id: "p1",
-          name: "gateway",
-          directory: "/p/gateway",
-          stale: false,
-          firstSeen: new Date(1000),
-          lastSeen: new Date(2000),
-        },
-      ], // projects (full rows)
-    );
+  it("summary aggregates live metrics", async () => {
+    const db = mkDb([
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/p/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+    ]);
     const svc = new DashboardService(readerMock as any, db as any);
     const out = await svc.summary(7);
     expect(out.totalCost).toBe(10);
     expect(out.sessionCount).toBe(4);
-    expect(out.analysedCount).toBe(3);
-    expect(out.featureCount).toBe(5);
     expect(out.byProject[0].name).toBe("gateway");
     expect(out.byProject[0].id).toBe("p1");
     expect(out.byProject[0].models).toEqual([
@@ -126,28 +120,24 @@ describe("DashboardService", () => {
         { directory: "/p/gateway_v2", durationMs: 1800000 },
       ]),
     };
-    const db = mkDb(
-      [{ c: 0 }],
-      [{ c: 0 }],
-      [
-        {
-          id: "p1",
-          name: "gateway",
-          directory: "/p/gateway",
-          stale: false,
-          firstSeen: new Date(1000),
-          lastSeen: new Date(2000),
-        },
-        {
-          id: "p2",
-          name: "gateway_v2",
-          directory: "/p/gateway_v2",
-          stale: false,
-          firstSeen: new Date(1500),
-          lastSeen: new Date(2500),
-        },
-      ],
-    );
+    const db = mkDb([
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/p/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+      {
+        id: "p2",
+        name: "gateway_v2",
+        directory: "/p/gateway_v2",
+        stale: false,
+        firstSeen: new Date(1500),
+        lastSeen: new Date(2500),
+      },
+    ]);
     const svc = new DashboardService(readerMock2 as any, db as any);
     const out = await svc.summary(7);
     expect(out.byProject).toHaveLength(1);
@@ -193,11 +183,7 @@ describe("DashboardService", () => {
         { directory: "/p/unsynced", durationMs: 60000 },
       ]),
     };
-    const db = mkDb(
-      [{ c: 0 }],
-      [{ c: 0 }],
-      [], // projects : aucun répertoire synchronisé
-    );
+    const db = mkDb([]); // projects : aucun répertoire synchronisé
     const svc = new DashboardService(readerMock3 as any, db as any);
     const out = await svc.summary(7);
     expect(out.byProject).toHaveLength(1);
@@ -224,7 +210,7 @@ describe("DashboardService", () => {
   });
 
   it("summary with periodDays 0 aggregates everything (from=0)", async () => {
-    const db = mkDb([{ c: 0 }], [{ c: 0 }], []);
+    const db = mkDb([]);
     const svc = new DashboardService(readerMock as any, db as any);
     const out = await svc.summary(0);
     expect(out.periodDays).toBe(0);
@@ -263,7 +249,7 @@ describe("DashboardService", () => {
         },
       ]),
     };
-    const db = mkDb([{ c: 0 }], [{ c: 0 }], []);
+    const db = mkDb([]);
     const svc = new DashboardService(readerMock4 as any, db as any);
     const out = await svc.summary(7);
     expect(out.byProject[0].bySource).toEqual([

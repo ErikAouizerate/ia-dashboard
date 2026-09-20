@@ -11,7 +11,6 @@ services:
       - proxy
     environment:
       OPENCODE_DB_PATH: /opencode/opencode.db
-      OPENCODE_AUTH_PATH: /opencode/auth.json
       OPENCODE_VM_STORE_DIR: /opencode-vm
       CI: "true"
     volumes:

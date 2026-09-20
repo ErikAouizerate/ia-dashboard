@@ -5,7 +5,7 @@ describe("sessionsReducer", () => {
   it("stores items and total on SUCCESS", () => {
     const s = sessionsReducer(undefined as any, {
       type: "SESSIONS_LOAD_SUCCESS",
-      payload: { data: { items: [{ id: "s1", annotated: false }], total: 1 } },
+      payload: { data: { items: [{ id: "s1" }], total: 1 } },
     });
     expect(s.items).toHaveLength(1);
     expect(s.total).toBe(1);

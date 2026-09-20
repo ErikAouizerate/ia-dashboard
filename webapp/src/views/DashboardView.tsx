@@ -71,7 +71,7 @@ export function DashboardView() {
       {loading && !summary && <p className="text-sm text-gray-500">Chargement…</p>}
       {summary && (
         <>
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             <KpiCard label="Coût total" value={`${summary.totalCost.toFixed(2)} €`} />
             <KpiCard label="Tokens in" value={summary.tokensInput.toLocaleString()} />
             <KpiCard label="Tokens out" value={summary.tokensOutput.toLocaleString()} />
@@ -79,10 +79,6 @@ export function DashboardView() {
               label="Sessions"
               value={String(summary.sessionCount)}
               sub={days === 0 ? "Tout" : `${summary.periodDays} jours`}
-            />
-            <KpiCard
-              label="Analysées / Features"
-              value={`${summary.analysedCount} / ${summary.featureCount}`}
             />
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

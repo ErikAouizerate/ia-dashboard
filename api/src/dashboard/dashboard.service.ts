@@ -1,10 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { count, sql } from "drizzle-orm";
 import { basename } from "node:path";
 import { DRIZZLE, DrizzleDb } from "../db/drizzle.provider";
 import { OPENCODE_READER } from "../opencode/opencode.module";
 import { SessionReader, SourceAggregate } from "../opencode/opencode.types";
-import { features, projects, sessionAnalyses } from "../db/schema";
+import { projects } from "../db/schema";
 import { groupProjects, ProjectGroupMeta } from "../projects/project-groups";
 import { nominalId, nominalName } from "../projects/nominal-name";
 
@@ -18,18 +17,7 @@ export class DashboardService {
   async summary(periodDays = 7) {
     const from = periodDays > 0 ? Date.now() - periodDays * 24 * 60 * 60 * 1000 : 0;
     const all = this.reader.aggregateAll({ from });
-    const [analysedCount, featureCount, projectRows] = await Promise.all([
-      this.db
-        .select({ c: count() })
-        .from(sessionAnalyses)
-        .where(sql`status = 'done'`)
-        .then((r) => Number(r[0]?.c ?? 0)),
-      this.db
-        .select({ c: count() })
-        .from(features)
-        .then((r) => Number(r[0]?.c ?? 0)),
-      this.db.select().from(projects),
-    ]);
+    const projectRows = await this.db.select().from(projects);
     const groups = groupProjects(projectRows);
     const dirToGroup = new Map<string, ProjectGroupMeta>();
     for (const g of groups) {
@@ -149,8 +137,6 @@ export class DashboardService {
       periodDays,
       ...all,
       sessionCount: all.sessions,
-      analysedCount,
-      featureCount,
       byProject: [...byProject.values()]
         .map((p) => ({
           ...p,

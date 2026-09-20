@@ -378,13 +378,6 @@ describe("OpenCodeReader", () => {
     expect(page.items.map((s) => s.id)).toEqual(["s1"]);
   });
 
-  it("builds an analysis input from user messages and todos", () => {
-    const input = reader.getSessionAnalysisInput("s1");
-    expect(input?.title).toBe("Add auth");
-    expect(input?.userMessages).toEqual(["Add OAuth login flow"]);
-    expect(input?.todos[0]).toEqual({ content: "Write provider", status: "in_progress" });
-  });
-
   it("lists parent sessions after a timestamp", () => {
     const all = reader.listParentSessions({});
     expect(all.map((s) => s.id)).toEqual(["s1"]);

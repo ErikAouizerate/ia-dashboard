@@ -1,17 +1,13 @@
 # ia-dashboard
 
-Local dashboard that reads the OpenCode SQLite database (read-only) and lets you
-**annotate the features you built with LLM assistance — qualitatively, not just
-quantitatively**. Each session (or group of sessions) maps to a feature you
-annotate by hand: purpose, satisfaction, time spent, status. Cost and tokens are
-snapshotted automatically from OpenCode, so you keep the numbers without typing
-them.
+Local dashboard that reads the OpenCode SQLite database (read-only) and reports
+**cost, tokens and activity per session, project and model**. Sessions are the
+unit of analysis: cost and tokens come live from OpenCode, no manual typing.
 
 - **API** — NestJS (TypeScript), reads `opencode.db` via better-sqlite3 (read-only,
-  WAL-safe), stores features + session snapshots in Postgres via Drizzle ORM.
-- **Webapp** — React + Vite + Tailwind v4 + Redux (classic). Lists sessions with an
-  **annotated / not-annotated badge**, lets you annotate or link a session to a
-  feature, and shows feature aggregates (cost, tokens, session count).
+  WAL-safe), keeps project rows in Postgres via Drizzle ORM.
+- **Webapp** — React + Vite + Tailwind v4 + Redux (classic). Lists sessions, projects
+  and models, and compares two sessions.
 
 ## Stack
 
@@ -75,10 +71,8 @@ URLs above.
 - The API opens `opencode.db` **read-only** (`file:...?mode=ro`). If a read-only
   connection fails (locked/WAL), it copies the db + `-wal`/`-shm` to a temp dir and
   reads the copy. It **never writes** to the OpenCode database.
-- Postgres holds only what you annotate: `features` and `feature_sessions`
-  (a snapshot of each linked session's cost/tokens/model/title at link time).
-- The session list always comes live from SQLite; a session shows the
-  **annotated badge** when its id exists in Postgres.
+- Postgres holds the derived `projects` rows (directory, first/last seen, stale).
+- The session list always comes live from SQLite.
 - `project.name` is NULL in the OpenCode DB, so the project display name is derived
   from the `worktree` basename (e.g. `/home/user/gateway` → `gateway`).
 

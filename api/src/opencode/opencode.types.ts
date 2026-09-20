@@ -36,8 +36,6 @@ export interface SessionListFilters {
   model?: string;
   from?: string;
   to?: string;
-  annotated?: "yes" | "no";
-  analysed?: string;
   parentOnly?: boolean;
   page?: number;
   pageSize?: number;
@@ -48,19 +46,6 @@ export interface SessionPage {
   total: number;
   page: number;
   pageSize: number;
-}
-
-export interface SessionAnalysisInput {
-  id: string;
-  title: string;
-  model: string;
-  agent: string | null;
-  timeCreated: number;
-  userMessages: string[];
-  todos: { content: string; status: string }[];
-  summaryAdditions: number;
-  summaryDeletions: number;
-  summaryFiles: number;
 }
 
 export interface SourceAggregate {
@@ -150,7 +135,6 @@ export interface SessionReader {
   getSessionSteps(ids: string[]): SessionStep[];
   getSessionToolUsage(ids: string[]): ToolUsage[];
   listDirectories(): { directory: string; firstSeen: number; lastSeen: number }[];
-  getSessionAnalysisInput(id: string): SessionAnalysisInput | null;
   listParentSessions(options?: { from?: number }): OpenCodeSession[];
   aggregateAll(options?: { from?: number }): SessionAggregate;
   aggregateByDirectory(options?: { from?: number }): DirectoryAggregate[];

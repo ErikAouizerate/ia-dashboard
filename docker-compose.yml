@@ -27,9 +27,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-ia}:${POSTGRES_PASSWORD:-ia}@db:5432/${POSTGRES_DB:-ia_dashboard}
       OPENCODE_DB_PATH: /opencode/opencode.db
-      OPENCODE_AUTH_PATH: /opencode/auth.json
       OPENCODE_VM_STORE_DIR: /opencode-vm
-      LLM_MODEL: ${LLM_MODEL:-deepseek-v4-flash}
     volumes:
       - ${OPENCODE_DATA_DIR:-${HOME}/.local/share/opencode}:/opencode:ro
       - ${OPENCODE_VM_STORE_DIR:-${HOME}/.local/share/opencode-vm}:/opencode-vm:ro

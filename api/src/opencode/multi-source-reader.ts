@@ -10,7 +10,6 @@ import {
   OpenCodeProject,
   OpenCodeSession,
   SessionAggregate,
-  SessionAnalysisInput,
   SessionCall,
   SessionListFilters,
   SessionPage,
@@ -265,11 +264,6 @@ export class MultiSourceReader implements SessionReader {
 
   getSessionToolUsage(ids: string[]): ToolUsage[] {
     return this.route(ids, (r, sub) => r.getSessionToolUsage(sub));
-  }
-
-  getSessionAnalysisInput(id: string): SessionAnalysisInput | null {
-    const reader = this.ownerOf(id);
-    return reader ? reader.getSessionAnalysisInput(id) : null;
   }
 
   listProjects(): OpenCodeProject[] {

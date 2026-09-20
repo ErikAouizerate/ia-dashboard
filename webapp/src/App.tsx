@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { DashboardView } from "./views/DashboardView";
 import { SessionsView } from "./views/SessionsView";
-import { FeaturesView } from "./views/FeaturesView";
-import { FeatureDetail } from "./views/FeatureDetail";
 import { ProjectsView } from "./views/ProjectsView";
 import { ProjectDetail } from "./views/ProjectDetail";
 import { CompareView } from "./views/CompareView";
@@ -28,9 +26,6 @@ export function App() {
             <NavLink to="/projects" className={navLinkClass}>
               Projets
             </NavLink>
-            <NavLink to="/features" className={navLinkClass}>
-              Features
-            </NavLink>
             <NavLink to="/compare" className={navLinkClass}>
               Comparer
             </NavLink>
@@ -42,8 +37,6 @@ export function App() {
             <Route path="/sessions" element={<SessionsView />} />
             <Route path="/projects" element={<ProjectsView />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
-            <Route path="/features" element={<FeaturesView />} />
-            <Route path="/features/:id" element={<FeatureDetail />} />
             <Route path="/compare" element={<CompareView />} />
           </Routes>
         </main>

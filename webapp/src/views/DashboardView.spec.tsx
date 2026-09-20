@@ -27,8 +27,6 @@ const summary = {
   tokensInput: 1000,
   tokensOutput: 2000,
   sessionCount: 42,
-  analysedCount: 10,
-  featureCount: 3,
   byProject: [
     {
       id: "p1",
@@ -83,7 +81,6 @@ describe("DashboardView", () => {
     );
     expect(html).toContain("12.34 €");
     expect(html).toContain("gateway");
-    expect(html).toContain("10 / 3");
   });
 
   it("renders loading state when no summary yet", () => {

@@ -12,7 +12,6 @@ import {
   OpenCodeSession,
   OpendbNotFoundError,
   SessionAggregate,
-  SessionAnalysisInput,
   SessionCall,
   SessionListFilters,
   SessionPage,
@@ -332,42 +331,6 @@ export class OpenCodeReader implements SessionReader {
     return rows;
   }
 
-  getSessionAnalysisInput(id: string): SessionAnalysisInput | null {
-    const db = this.requireDb();
-    const s = this.getSession(id);
-    if (!s) return null;
-    const userParts = db
-      .prepare(
-        `SELECT p.data AS part_data
-         FROM message m JOIN part p ON p.message_id = m.id
-         WHERE m.session_id = ? AND json_extract(m.data, '$.role') = 'user'
-           AND json_extract(p.data, '$.type') = 'text'
-         ORDER BY m.time_created, p.time_created`,
-      )
-      .all(id) as { part_data: string }[];
-    const userMessages = userParts
-      .map((r) => this.extractPartText(r.part_data))
-      .filter((t): t is string => !!t);
-    const todos = db
-      .prepare(
-        `SELECT content, status FROM todo
-         WHERE session_id = ? ORDER BY position`,
-      )
-      .all(id) as { content: string; status: string }[];
-    return {
-      id: s.id,
-      title: s.title,
-      model: s.model,
-      agent: s.agent,
-      timeCreated: s.timeCreated,
-      userMessages,
-      todos,
-      summaryAdditions: s.summaryAdditions,
-      summaryDeletions: s.summaryDeletions,
-      summaryFiles: s.summaryFiles,
-    };
-  }
-
   listParentSessions({ from }: { from?: number } = {}): OpenCodeSession[] {
     const db = this.requireDb();
     const where = ["s.parent_id IS NULL"];
@@ -639,17 +602,6 @@ export class OpenCodeReader implements SessionReader {
     try {
       const st = statSync(this.dbPath);
       return `${st.ino}:${st.mtimeMs}:${st.size}`;
-    } catch {
-      return null;
-    }
-  }
-
-  private extractPartText(data: string): string | null {
-    try {
-      const parsed = JSON.parse(data) as { text?: string };
-      return typeof parsed.text === "string" && parsed.text.trim()
-        ? parsed.text
-        : null;
     } catch {
       return null;
     }

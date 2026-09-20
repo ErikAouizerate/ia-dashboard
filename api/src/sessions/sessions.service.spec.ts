@@ -25,48 +25,27 @@ const mkDb = (...results: unknown[]) => {
 };
 
 describe("SessionsService", () => {
-  it("returns annotated flag via annotatedMap", async () => {
-    const db = mkDb([{ sessionId: "s1", featureId: "f1" }]);
-    const svc = new SessionsService(sourcesMock as any, db as any);
-    const map = await svc.annotatedMap(["s1", "s2"]);
-    expect(map.s1).toBe("f1");
-    expect(map.s2).toBeNull();
-  });
-
   it("delegates list to the reader", async () => {
-    const db = mkDb([], [], []);
+    const db = mkDb([]);
     const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.total).toBe(2);
     expect(sourcesMock.listSessions).toHaveBeenCalledWith({ page: 1 });
   });
 
-  it("list resolves projectId from directory and analysis status", async () => {
-    const db = mkDb(
-      [], // annotatedMap (featureSessions rows)
-      [], // analysisMap (sessionAnalyses rows)
-      [{ id: "p1", directory: "/p/gateway" }], // projects lookup for directory->id
-    );
+  it("list resolves projectId from directory", async () => {
+    const db = mkDb([{ id: "p1", directory: "/p/gateway" }]);
     const svc = new SessionsService(sourcesMock as any, db as any);
     const page = await svc.list({ page: 1 });
     expect(page.items[0].projectId).toBe("p1");
-    expect(page.items[0].analysedStatus).toBe("none");
-    expect(page.items[0].analysed).toBe(false);
   });
 
-  it("findOne annotates the session when linked", async () => {
-    const db = mkDb([{ featureId: "f9" }], []);
+  it("findOne returns the session with its projectId", async () => {
+    const db = mkDb([{ id: "p1", directory: "/p/gateway" }]);
     const svc = new SessionsService(sourcesMock as any, db as any);
     const out = await svc.findOne("s3");
-    expect(out?.annotated).toBe(true);
-    expect(out?.featureId).toBe("f9");
-  });
-
-  it("analysisFor returns the stored analysis", async () => {
-    const db = mkDb([{ sessionId: "s1", status: "done", summary: "x" }]);
-    const svc = new SessionsService(sourcesMock as any, db as any);
-    const a = await svc.analysisFor("s1");
-    expect(a?.status).toBe("done");
+    expect(out?.title).toBe("T");
+    expect(out?.projectId).toBe("p1");
   });
 
   it("meta returns grouped projects with synthetic ids", async () => {
@@ -100,8 +79,6 @@ describe("SessionsService", () => {
         { id: "p1", directory: "/p/gateway" },
         { id: "p2", directory: "/p/gateway_v2" },
       ], // resolve select-all
-      [], // annotatedMap
-      [], // analysisMap
       [
         { id: "p1", directory: "/p/gateway" },
         { id: "p2", directory: "/p/gateway_v2" },

@@ -13,24 +13,8 @@ export interface ProjectRow {
   durationMs: number;
 }
 
-export interface Proposal {
-  id: string;
-  projectId: string;
-  name: string;
-  purpose: string | null;
-  sessionIds: string[];
-  demandes: { label: string; description: string }[];
-  enjeux: { label: string; description: string }[];
-  rationale: string | null;
-  status: "pending" | "accepted" | "dismissed" | "stale";
-  createdAt: string;
-}
-
 export interface ProjectDetail extends ProjectRow {
   byModel: { model: string; totalCost: number; sessions: number }[];
-  ungroupedSessions: number;
-  features: any[];
-  proposals: Proposal[];
 }
 
 interface ProjectsState {

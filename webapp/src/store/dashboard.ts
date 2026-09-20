@@ -4,8 +4,6 @@ export interface DashboardSummary {
   tokensInput: number;
   tokensOutput: number;
   sessionCount: number;
-  analysedCount: number;
-  featureCount: number;
   byProject: {
     id: string | null;
     name: string;
