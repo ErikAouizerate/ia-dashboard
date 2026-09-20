@@ -397,10 +397,21 @@ describe("OpenCodeReader", () => {
     expect(byDir[0].name).toBe("gateway");
     expect(byDir[0].totalCost).toBeCloseTo(1.65);
     expect(byDir[0].sessions).toBe(2);
+    expect(byDir[0].bySource).toEqual([
+      {
+        source: "host",
+        totalCost: byDir[0].totalCost,
+        tokensInput: byDir[0].tokensInput,
+        tokensOutput: byDir[0].tokensOutput,
+        sessions: byDir[0].sessions,
+      },
+    ]);
     const byModel = reader.aggregateByModel({});
     expect(byModel[0].model).toBe("deepseek-v4-flash-free");
     const all = reader.aggregateAll({});
     expect(all.sessions).toBe(2);
+    expect(all.bySource).toHaveLength(1);
+    expect(all.bySource[0].source).toBe("host");
   });
 
   it("aggregates by day (YYYY-MM-DD)", () => {

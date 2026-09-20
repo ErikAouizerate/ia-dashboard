@@ -63,11 +63,20 @@ export interface SessionAnalysisInput {
   summaryFiles: number;
 }
 
+export interface SourceAggregate {
+  source: string;
+  totalCost: number;
+  tokensInput: number;
+  tokensOutput: number;
+  sessions: number;
+}
+
 export interface SessionAggregate {
   totalCost: number;
   tokensInput: number;
   tokensOutput: number;
   sessions: number;
+  bySource: SourceAggregate[];
 }
 
 export interface DirectoryAggregate extends SessionAggregate {
@@ -85,6 +94,7 @@ export interface DirectoryModelAggregate extends SessionAggregate {
 export interface DirectoryTimeAggregate {
   directory: string;
   durationMs: number;
+  bySource: { source: string; durationMs: number }[];
 }
 
 export interface ModelAggregate extends SessionAggregate {
@@ -124,6 +134,30 @@ export interface ToolUsage {
   count: number;
   completed: number;
   error: number;
+}
+
+export interface SessionReader {
+  readonly source: string;
+  open(): void;
+  close(): void;
+  listSessions(filters?: SessionListFilters): SessionPage;
+  getSession(id: string): OpenCodeSession | null;
+  listProjects(): OpenCodeProject[];
+  listModels(): string[];
+  getSubagentIds(parentId: string): string[];
+  getSessionTree(id: string): string[];
+  getSessionCalls(ids: string[]): SessionCall[];
+  getSessionSteps(ids: string[]): SessionStep[];
+  getSessionToolUsage(ids: string[]): ToolUsage[];
+  listDirectories(): { directory: string; firstSeen: number; lastSeen: number }[];
+  getSessionAnalysisInput(id: string): SessionAnalysisInput | null;
+  listParentSessions(options?: { from?: number }): OpenCodeSession[];
+  aggregateAll(options?: { from?: number }): SessionAggregate;
+  aggregateByDirectory(options?: { from?: number }): DirectoryAggregate[];
+  aggregateByDirectoryAndModel(options?: { from?: number }): DirectoryModelAggregate[];
+  aggregateByModel(options?: { from?: number }): ModelAggregate[];
+  aggregateByDay(options?: { from?: number }): DayAggregate[];
+  timeByDirectory(options?: { from?: number }): DirectoryTimeAggregate[];
 }
 
 export class OpendbNotFoundError extends Error {

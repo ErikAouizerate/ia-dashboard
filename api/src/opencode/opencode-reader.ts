@@ -16,7 +16,9 @@ import {
   SessionCall,
   SessionListFilters,
   SessionPage,
+  SessionReader,
   SessionStep,
+  SourceAggregate,
   ToolUsage,
 } from "./opencode.types";
 
@@ -52,7 +54,7 @@ const SESSION_COLS = `s.id, s.project_id, s.directory, s.path, s.parent_id, s.ti
        s.summary_additions, s.summary_deletions, s.summary_files,
        s.time_created, s.time_updated`;
 
-export class OpenCodeReader {
+export class OpenCodeReader implements SessionReader {
   private db: Database.Database | null = null;
   private tmpDir: string | null = null;
   private openedSig: string | null = null;
@@ -62,6 +64,18 @@ export class OpenCodeReader {
     public readonly source: string = "host",
     private readonly watchChanges = false,
   ) {}
+
+  private sourceEntry(r: Omit<SourceAggregate, "source">): SourceAggregate[] {
+    return [
+      {
+        source: this.source,
+        totalCost: r.totalCost,
+        tokensInput: r.tokensInput,
+        tokensOutput: r.tokensOutput,
+        sessions: r.sessions,
+      },
+    ];
+  }
 
   open(): void {
     if (!existsSync(this.dbPath)) throw new OpendbNotFoundError(this.dbPath);
@@ -383,8 +397,8 @@ export class OpenCodeReader {
                 COUNT(*) AS sessions
          FROM session WHERE time_created >= @from`,
       )
-      .get({ from }) as SessionAggregate;
-    return r;
+      .get({ from }) as Omit<SessionAggregate, "bySource">;
+    return { ...r, bySource: this.sourceEntry(r) };
   }
 
   aggregateAll({ from = 0 }: { from?: number } = {}): SessionAggregate {
@@ -406,8 +420,12 @@ export class OpenCodeReader {
          WHERE time_created >= @from AND directory IS NOT NULL AND directory != ''
          GROUP BY directory ORDER BY totalCost DESC`,
       )
-      .all({ from }) as Omit<DirectoryAggregate, "name">[];
-    return rows.map((r) => ({ ...r, name: basename(r.directory) }));
+      .all({ from }) as Omit<DirectoryAggregate, "name" | "bySource">[];
+    return rows.map((r) => ({
+      ...r,
+      name: basename(r.directory),
+      bySource: this.sourceEntry(r),
+    }));
   }
 
   aggregateByDirectoryAndModel({ from = 0 }: { from?: number } = {}): DirectoryModelAggregate[] {
@@ -431,7 +449,7 @@ export class OpenCodeReader {
       tokensOutput: number;
       sessions: number;
     }[];
-    const out: DirectoryModelAggregate[] = [];
+    const out: Omit<DirectoryModelAggregate, "bySource">[] = [];
     for (const r of rows) {
       const id = this.parseModel(r.model);
       if (!id) continue;
@@ -452,7 +470,9 @@ export class OpenCodeReader {
         });
       }
     }
-    return out.sort((a, b) => b.totalCost - a.totalCost);
+    return out
+      .sort((a, b) => b.totalCost - a.totalCost)
+      .map((r) => ({ ...r, bySource: this.sourceEntry(r) }));
   }
 
   timeByDirectory({ from = 0 }: { from?: number } = {}): DirectoryTimeAggregate[] {
@@ -510,7 +530,11 @@ export class OpenCodeReader {
     flushSession();
 
     return [...byDir.entries()]
-      .map(([directory, durationMs]) => ({ directory, durationMs }))
+      .map(([directory, durationMs]) => ({
+        directory,
+        durationMs,
+        bySource: [{ source: this.source, durationMs }],
+      }))
       .sort((a, b) => b.durationMs - a.durationMs);
   }
 
@@ -533,7 +557,7 @@ export class OpenCodeReader {
       tokensOutput: number;
       sessions: number;
     }[];
-    const out: ModelAggregate[] = [];
+    const out: Omit<ModelAggregate, "bySource">[] = [];
     for (const r of rows) {
       const id = this.parseModel(r.model);
       if (!id) continue;
@@ -553,7 +577,9 @@ export class OpenCodeReader {
         });
       }
     }
-    return out.sort((a, b) => b.totalCost - a.totalCost);
+    return out
+      .sort((a, b) => b.totalCost - a.totalCost)
+      .map((r) => ({ ...r, bySource: this.sourceEntry(r) }));
   }
 
   aggregateByDay({ from = 0 }: { from?: number } = {}): DayAggregate[] {
@@ -569,7 +595,7 @@ export class OpenCodeReader {
       tokensInput: number;
       tokensOutput: number;
     }[];
-    const map = new Map<string, DayAggregate>();
+    const map = new Map<string, Omit<DayAggregate, "bySource">>();
     for (const r of rows) {
       const day = new Date(r.time_created).toISOString().slice(0, 10);
       const agg = map.get(day) ?? {
@@ -585,7 +611,9 @@ export class OpenCodeReader {
       agg.sessions += 1;
       map.set(day, agg);
     }
-    return [...map.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
+    return [...map.values()]
+      .sort((a, b) => (a.day < b.day ? -1 : 1))
+      .map((r) => ({ ...r, bySource: this.sourceEntry(r) }));
   }
 
   close(): void {
