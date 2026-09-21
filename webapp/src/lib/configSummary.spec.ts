@@ -36,4 +36,19 @@ describe("summarizeConfig", () => {
   it("omits empty sections", () => {
     expect(summarizeConfig({ model: "m" })).toEqual([{ label: "Modèle", value: "m" }]);
   });
+
+  it("omits empty arrays and empty objects but counts non-empty ones", () => {
+    expect(
+      summarizeConfig({ model: "m", agents: [], mcp: {}, plugins: [], skills: [] }),
+    ).toEqual([{ label: "Modèle", value: "m" }]);
+    expect(summarizeConfig({ model: "m", agents: { build: {} } })).toEqual([
+      { label: "Modèle", value: "m" },
+      { label: "Agents", value: "1" },
+    ]);
+  });
+
+  it("returns nothing for other non-objects", () => {
+    expect(summarizeConfig(undefined)).toEqual([]);
+    expect(summarizeConfig(42)).toEqual([]);
+  });
 });

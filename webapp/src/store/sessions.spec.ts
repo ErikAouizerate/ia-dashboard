@@ -51,4 +51,44 @@ describe("sessionsReducer", () => {
     expect(s.error).toContain("boom");
     expect(s.loading).toBe(false);
   });
+
+  it("exposes the initial state shape", () => {
+    expect(sessionsReducer(undefined as any, { type: "INIT" })).toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      filters: {},
+      meta: { projects: [], models: [], sources: [], configs: [] },
+      loading: false,
+      error: null,
+    });
+  });
+
+  it("keeps the current pageSize when a later SUCCESS omits it", () => {
+    const first = sessionsReducer(undefined as any, {
+      type: "SESSIONS_LOAD_SUCCESS",
+      payload: { data: { items: [], total: 0, page: 1, pageSize: 25 } },
+    });
+    const second = sessionsReducer(first, {
+      type: "SESSIONS_LOAD_SUCCESS",
+      payload: { data: { items: [], total: 0, page: 2 } },
+    });
+    expect(second.pageSize).toBe(25);
+    expect(second.page).toBe(2);
+  });
+
+  it("stores meta on META_LOAD_SUCCESS", () => {
+    const meta = {
+      projects: [{ id: "nominal:x", name: "x" }],
+      models: ["m"],
+      sources: ["host"],
+      configs: [{ configId: "c", profile: "p" }],
+    };
+    const s = sessionsReducer(undefined as any, {
+      type: "META_LOAD_SUCCESS",
+      payload: { data: meta },
+    });
+    expect(s.meta).toEqual(meta);
+  });
 });
