@@ -35,4 +35,11 @@ describe("buildModelColorMap", () => {
     const colorOf = buildModelColorMap([]);
     expect(colorOf("unknown")).toBe(MODEL_COLORS[0]);
   });
+
+  it("gives every model in the palette a distinct color", () => {
+    const models = MODEL_COLORS.map((_, i) => ({ model: `model-${i}` }));
+    const colorOf = buildModelColorMap([{ models }]);
+    const colors = new Set(models.map((m) => colorOf(m.model)));
+    expect(colors.size).toBe(MODEL_COLORS.length);
+  });
 });

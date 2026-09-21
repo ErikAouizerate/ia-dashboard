@@ -7,6 +7,14 @@ export const MODEL_COLORS = [
   "bg-cyan-500",
   "bg-orange-400",
   "bg-teal-400",
+  "bg-fuchsia-500",
+  "bg-lime-500",
+  "bg-sky-500",
+  "bg-red-500",
+  "bg-indigo-400",
+  "bg-pink-400",
+  "bg-green-500",
+  "bg-yellow-500",
 ];
 
 export function buildModelColorMap(

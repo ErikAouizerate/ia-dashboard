@@ -8,6 +8,7 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { formatDuration, avgCostPerMillion } from "../lib/format";
 import { buildModelColorMap } from "../lib/modelColors";
+import { filterModels } from "../lib/modelFilter";
 import { configKey, configLabel } from "../store/configs";
 import { isExcludedProject } from "../lib/excludedProjects";
 
@@ -17,15 +18,25 @@ export function DashboardView() {
     (s: RootState) => s.dashboard,
   );
   const [days, setDays] = useState(periodDays);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const colorOf = summary
     ? buildModelColorMap([{ models: summary.byModel }])
     : () => "";
-  const visibleByProject = summary
-    ? summary.byProject.filter((r) => !isExcludedProject(r.name))
+  const view = summary ? filterModels(summary, hidden) : null;
+  const visibleByProject = view
+    ? view.byProject.filter((r) => !isExcludedProject(r.name))
     : [];
   const visibleTimeByProject = summary
     ? summary.timeByProject.filter((r) => !isExcludedProject(r.name))
     : [];
+
+  const toggleModel = (model: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(model)) next.delete(model);
+      else next.add(model);
+      return next;
+    });
 
   const load = (d: number) => {
     setDays(d);
@@ -72,12 +83,12 @@ export function DashboardView() {
         </div>
       )}
       {loading && !summary && <p className="text-sm text-gray-500">Chargement…</p>}
-      {summary && (
+      {summary && view && (
         <>
           <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <KpiCard label="Coût total" value={`${summary.totalCost.toFixed(2)} €`} />
-            <KpiCard label="Tokens in" value={summary.tokensInput.toLocaleString()} />
-            <KpiCard label="Tokens out" value={summary.tokensOutput.toLocaleString()} />
+            <KpiCard label="Coût total" value={`${view.totalCost.toFixed(2)} €`} />
+            <KpiCard label="Tokens in" value={view.tokensInput.toLocaleString()} />
+            <KpiCard label="Tokens out" value={view.tokensOutput.toLocaleString()} />
             <KpiCard
               label="Sessions"
               value={String(summary.sessionCount)}
@@ -88,12 +99,23 @@ export function DashboardView() {
             <Card className="mb-4 p-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
                 <span className="font-semibold text-gray-900">Modèles</span>
-                {summary.byModel.map((m) => (
-                  <span key={m.model} className="flex items-center gap-1.5">
-                    <span className={`inline-block h-3 w-3 rounded-sm ${colorOf(m.model)}`} />
-                    {m.model}
-                  </span>
-                ))}
+                {summary.byModel.map((m) => {
+                  const off = hidden.has(m.model);
+                  return (
+                    <button
+                      key={m.model}
+                      type="button"
+                      onClick={() => toggleModel(m.model)}
+                      title={off ? "Afficher ce modèle" : "Masquer ce modèle"}
+                      className={`flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-gray-100 ${
+                        off ? "opacity-40 line-through" : ""
+                      }`}
+                    >
+                      <span className={`inline-block h-3 w-3 rounded-sm ${colorOf(m.model)}`} />
+                      {m.model}
+                    </button>
+                  );
+                })}
               </div>
             </Card>
           )}
@@ -134,26 +156,41 @@ export function DashboardView() {
             </Card>
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût par modèle</h3>
-              <BarList rows={summary.byModel} valueOf={(r) => r.totalCost} labelOf={(r) => r.model} />
+              <BarList
+                rows={view.byModel}
+                valueOf={(r) => r.totalCost}
+                labelOf={(r) => r.model}
+                stackOf={(r) => [
+                  { value: r.totalCost, className: colorOf(r.model), title: `${r.model}: ${r.totalCost.toFixed(2)} €` },
+                ]}
+              />
             </Card>
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Tokens par modèle</h3>
               <BarList
-                rows={summary.byModel}
+                rows={view.byModel}
                 valueOf={(r) => r.tokensInput + r.tokensOutput}
                 labelOf={(r) => r.model}
                 valueSuffix=""
                 formatValue={(n) => n.toLocaleString()}
                 stackOf={(r) => [
-                  { value: r.tokensInput, className: "bg-blue-500" },
-                  { value: r.tokensOutput, className: "bg-emerald-400" },
+                  {
+                    value: r.tokensInput,
+                    className: colorOf(r.model),
+                    title: `${r.model} in: ${r.tokensInput.toLocaleString()} tok`,
+                  },
+                  {
+                    value: r.tokensOutput,
+                    className: `${colorOf(r.model)} opacity-50`,
+                    title: `${r.model} out: ${r.tokensOutput.toLocaleString()} tok`,
+                  },
                 ]}
               />
             </Card>
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût moyen / 1M tokens par config</h3>
               <BarList
-                rows={summary.byConfig}
+                rows={view.byConfig}
                 valueOf={(r) => avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput)}
                 labelOf={(r) => configLabel(r)}
                 to={(r) => `/configs/${configKey(r)}`}
@@ -175,10 +212,17 @@ export function DashboardView() {
             <Card className="p-4">
               <h3 className="mb-3 text-sm font-semibold text-gray-900">Coût moyen / 1M tokens par modèle</h3>
               <BarList
-                rows={summary.byModel}
+                rows={view.byModel}
                 valueOf={(r) => avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput)}
                 labelOf={(r) => r.model}
                 valueSuffix="€/M"
+                stackOf={(r) => [
+                  {
+                    value: avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput),
+                    className: colorOf(r.model),
+                    title: `${r.model}: ${avgCostPerMillion(r.totalCost, r.tokensInput + r.tokensOutput).toFixed(2)} €/M`,
+                  },
+                ]}
               />
             </Card>
             <Card className="p-4">
