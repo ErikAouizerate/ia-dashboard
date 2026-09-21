@@ -268,6 +268,93 @@ function buildDanglingPartFixture(dir: string): string {
   return path;
 }
 
+function buildRulesFixture(dir: string): string {
+  const path = join(dir, "opencode.db");
+  const db = new Database(path);
+  db.exec(`CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
+           CREATE TABLE session (
+             id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
+             title TEXT, model TEXT, agent TEXT,
+             cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+             tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+             summary_additions INTEGER, summary_deletions INTEGER, summary_files INTEGER,
+             time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);
+           CREATE TABLE message (
+             id TEXT PRIMARY KEY, session_id TEXT, data TEXT,
+             time_created INTEGER, time_updated INTEGER);
+           CREATE TABLE part (
+             id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT,
+             time_created INTEGER, time_updated INTEGER);`);
+  db.prepare("INSERT INTO project (id, worktree, name) VALUES (?,?,?)").run(
+    "proj1",
+    "/repo/alpha",
+    null,
+  );
+  const ins = db.prepare(
+    `INSERT INTO session (id, project_id, parent_id, directory, path, title, model, agent, cost,
+       tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+       summary_additions, summary_deletions, summary_files, time_created, time_updated, time_compacting)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  // même id de modèle que d2/d3/d5 mais chaînes JSON différentes -> à fusionner
+  ins.run("d1", "proj1", null, "/repo/alpha", null, "A",
+    '{"id":"dup-model","providerID":"p1"}', "build",
+    1.0, 100, 10, 5, 0, 0, 0, 0, 0, 1000, 5000, null);
+  ins.run("d2", "proj1", null, "/repo/alpha", null, "B",
+    '{"id":"dup-model","providerID":"p2","variant":"x"}', "build",
+    2.0, 200, 20, 7, 0, 0, 0, 0, 0, 6000, 8000, null);
+  ins.run("d3", "proj1", null, "/repo/beta", null, "C",
+    '{"id":"dup-model","providerID":"p1"}', "build",
+    4.0, 400, 40, 8, 0, 0, 0, 0, 0, 1000, 2000, null);
+  ins.run("d4", "proj1", null, "/repo/alpha", null, "D",
+    '{"id":"other-model","providerID":"p1"}', "build",
+    0.5, 5, 1, 0, 0, 0, 0, 0, 0, 9000, 9500, null);
+  ins.run("d5", "proj1", "d4", "/repo/gamma", null, "sub",
+    '{"id":"dup-model","providerID":"p3"}', "general",
+    9.0, 50, 5, 0, 0, 0, 0, 0, 0, 1000, 3000, null);
+  // d6 : durée de session négative (time_updated < time_created)
+  ins.run("d6", "proj1", null, "/repo/alpha", null, "E",
+    '{"id":"other-model","providerID":"p1"}', "build",
+    0.0, 0, 0, 0, 0, 0, 0, 0, 0, 5000, 4000, null);
+  // n1 : colonnes de tokens NULL (objet tokens absent)
+  ins.run("n1", "proj1", null, "/repo/alpha", null, "F",
+    '{"id":"dup-model"}', null,
+    0.0, null, null, null, null, null, null, null, null, 12000, 13000, null);
+
+  const insMsg = db.prepare(
+    "INSERT INTO message (id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?)",
+  );
+  const insPart = db.prepare(
+    "INSERT INTO part (id, message_id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?,?)",
+  );
+  insMsg.run("d1-mu", "d1", JSON.stringify({ role: "user" }), 1000, 1000);
+  insMsg.run("d1-ma1", "d1", JSON.stringify({ role: "assistant", cost: 0.2 }), 1500, 1500);
+  insMsg.run(
+    "d1-ma2",
+    "d1",
+    JSON.stringify({ role: "assistant", cost: 0.3, tokens: { input: 7 } }),
+    1600,
+    1600,
+  );
+  insPart.run("d1-p", "d1-mu", "d1", JSON.stringify({ type: "text" }), 1000, 4000);
+  insPart.run("d1-sp1", "d1-ma1", "d1", JSON.stringify({ type: "step-finish", cost: 1.0 }), 1500, 1500);
+  insPart.run("d1-sp2", "d1-ma2", "d1", JSON.stringify({ type: "step-finish", tokens: { output: 3 } }), 1600, 1600);
+
+  insMsg.run("d2-m", "d2", JSON.stringify({ role: "assistant" }), 6000, 8000);
+  insPart.run("d2-p", "d2-m", "d2", JSON.stringify({ type: "text" }), 6000, 8000);
+  insMsg.run("d3-m", "d3", JSON.stringify({ role: "assistant" }), 1000, 2000);
+  insPart.run("d3-p", "d3-m", "d3", JSON.stringify({ type: "text" }), 1000, 2000);
+  insMsg.run("d4-m", "d4", JSON.stringify({ role: "assistant" }), 9000, 9000);
+  insPart.run("d4-p", "d4-m", "d4", JSON.stringify({ type: "text" }), 9000, 9000);
+  insMsg.run("d5-m", "d5", JSON.stringify({ role: "assistant" }), 1000, 3000);
+  insPart.run("d5-p", "d5-m", "d5", JSON.stringify({ type: "text" }), 1000, 3000);
+  insMsg.run("d6-m", "d6", JSON.stringify({ role: "assistant" }), 5000, 4000);
+  insPart.run("d6-p", "d6-m", "d6", JSON.stringify({ type: "text" }), 5000, 4000);
+
+  db.close();
+  return path;
+}
+
 describe("OpenCodeReader", () => {
   let dir: string;
   let path: string;
@@ -472,6 +559,98 @@ describe("OpenCodeReader", () => {
         2 * 60 * 60 * 1000,
       );
       reader.close();
+    });
+  });
+
+  describe("business rules fixture", () => {
+    let reader: OpenCodeReader;
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), "oc-rules-"));
+      path = buildRulesFixture(dir);
+      reader = new OpenCodeReader(path);
+      reader.open();
+    });
+    afterEach(() => reader.close());
+
+    it("timeByDirectory sums parent-session durations per directory and exposes bySource host", () => {
+      const rows = reader.timeByDirectory({});
+      const alpha = rows.find((r) => r.directory === "/repo/alpha");
+      expect(alpha?.durationMs).toBe(5000); // d1 [1000,4000] + d2 [6000,8000] : plusieurs sessions sommées
+      expect(alpha?.bySource).toEqual([{ source: "host", durationMs: 5000 }]);
+      const beta = rows.find((r) => r.directory === "/repo/beta");
+      expect(beta?.durationMs).toBe(1000); // d3
+    });
+
+    it("timeByDirectory excludes subagent sessions and non-positive durations", () => {
+      const rows = reader.timeByDirectory({});
+      // d5 est dans /repo/gamma mais parent_id non nul -> aucune ligne
+      expect(rows.find((r) => r.directory === "/repo/gamma")).toBeUndefined();
+      // d4 (instantanée) et d6 (négative) sont dans /repo/alpha et n'ajoutent rien
+      expect(rows.find((r) => r.directory === "/repo/alpha")?.durationMs).toBe(5000);
+    });
+
+    it("aggregateByDirectoryAndModel merges JSON model strings that parse to the same id", () => {
+      const rows = reader.aggregateByDirectoryAndModel({});
+      const alphaDup = rows.find(
+        (r) => r.directory === "/repo/alpha" && r.model === "dup-model",
+      );
+      expect(alphaDup?.sessions).toBe(3); // d1 + d2 + n1 (3 chaînes JSON différentes)
+      expect(alphaDup?.totalCost).toBeCloseTo(3.0);
+      expect(alphaDup?.tokensInput).toBe(300);
+      // même id mais répertoire différent -> lignes distinctes
+      const betaDup = rows.find(
+        (r) => r.directory === "/repo/beta" && r.model === "dup-model",
+      );
+      expect(betaDup?.sessions).toBe(1);
+      expect(betaDup?.totalCost).toBeCloseTo(4.0);
+      expect(rows.filter((r) => r.model === "dup-model")).toHaveLength(3);
+    });
+
+    it("aggregateByModel sums and merges equal parsed ids", () => {
+      const rows = reader.aggregateByModel({});
+      const dup = rows.find((r) => r.model === "dup-model");
+      expect(dup?.sessions).toBe(5); // d1 d2 d3 d5 n1
+      expect(dup?.totalCost).toBeCloseTo(16.0);
+      expect(dup?.tokensInput).toBe(750);
+      const other = rows.find((r) => r.model === "other-model");
+      expect(other?.sessions).toBe(2); // d4 d6
+      expect(other?.totalCost).toBeCloseTo(0.5);
+      expect(rows[0].model).toBe("dup-model");
+    });
+
+    it("getSessionCalls defaults absent tokens to 0 and absent agent/mode to null", () => {
+      const calls = reader.getSessionCalls(["d1"]);
+      const bare = calls.find((c) => c.cost === 0.2)!;
+      expect(bare.tokensInput).toBe(0);
+      expect(bare.tokensOutput).toBe(0);
+      expect(bare.tokensReasoning).toBe(0);
+      expect(bare.cacheRead).toBe(0);
+      expect(bare.cacheWrite).toBe(0);
+      expect(bare.agent).toBeNull();
+      expect(bare.mode).toBeNull();
+      const partial = calls.find((c) => c.cost === 0.3)!;
+      expect(partial.tokensInput).toBe(7);
+      expect(partial.tokensOutput).toBe(0);
+    });
+
+    it("getSessionSteps defaults absent tokens to 0", () => {
+      const steps = reader.getSessionSteps(["d1"]);
+      const bare = steps.find((s) => s.cost === 1.0)!;
+      expect(bare.tokensInput).toBe(0);
+      expect(bare.tokensOutput).toBe(0);
+      expect(bare.tokensReasoning).toBe(0);
+      expect(bare.cacheRead).toBe(0);
+      expect(bare.cacheWrite).toBe(0);
+      const partial = steps.find((s) => s.tokensOutput === 3)!;
+      expect(partial.tokensInput).toBe(0);
+    });
+
+    it("listSessions accepts a directories list and the historical single-directory form", () => {
+      const list = reader.listSessions({ directories: ["/repo/alpha", "/repo/beta"] });
+      expect(list.items.map((s) => s.id).sort()).toEqual(["d1", "d2", "d3", "d4", "d6", "n1"]);
+      expect(list.total).toBe(6);
+      const single = reader.listSessions({ directory: "/repo/beta" });
+      expect(single.items.map((s) => s.id)).toEqual(["d3"]);
     });
   });
 });

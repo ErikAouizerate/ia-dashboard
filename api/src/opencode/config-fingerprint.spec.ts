@@ -40,3 +40,39 @@ test("normalizeConfig sorts order-bearing arrays", () => {
   expect(n.skills).toEqual(["x", "y"]);
   expect((n.mcp as { name: string }[]).map((m) => m.name)).toEqual(["alpha", "zeta"]);
 });
+
+test("normalizeConfig fully sorts mcp with at least three entries whatever the order", () => {
+  const n = normalizeConfig({
+    model: "m",
+    mcp: [
+      { name: "zeta", enabled: true },
+      { name: "mu", enabled: false },
+      { name: "alpha", enabled: true },
+    ],
+  }) as Record<string, unknown>;
+  expect((n.mcp as { name: string }[]).map((m) => m.name)).toEqual(["alpha", "mu", "zeta"]);
+});
+
+test("fingerprint is order-insensitive with at least three plugins, mcp and skills", () => {
+  const many = {
+    model: "m",
+    plugins: ["c", "a", "b", "d"],
+    mcp: [
+      { name: "zeta", enabled: true },
+      { name: "mu", enabled: false },
+      { name: "alpha", enabled: true },
+    ],
+    skills: ["y", "x", "z"],
+  };
+  const reordered = {
+    model: "m",
+    plugins: ["d", "b", "a", "c"],
+    mcp: [
+      { name: "alpha", enabled: true },
+      { name: "zeta", enabled: true },
+      { name: "mu", enabled: false },
+    ],
+    skills: ["z", "y", "x"],
+  };
+  expect(configFingerprint(many)).toBe(configFingerprint(reordered));
+});

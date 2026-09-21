@@ -4,8 +4,14 @@ describe("nominalName", () => {
   it("keeps names without a version suffix", () => {
     expect(nominalName("infrastructure")).toBe("infrastructure");
     expect(nominalName("mon_projet")).toBe("mon_projet");
+    expect(nominalName("sans_suffixe")).toBe("sans_suffixe");
     expect(nominalName("vue3")).toBe("vue3");
     expect(nominalName("v2")).toBe("v2");
+  });
+
+  it("only strips the suffix when it ends the basename", () => {
+    expect(nominalName("projet_v2_bis")).toBe("projet_v2_bis");
+    expect(nominalName("data_v2x")).toBe("data_v2x");
   });
 
   it("strips a trailing _v<digits> suffix", () => {

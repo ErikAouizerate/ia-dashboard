@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { groupProjects, ProjectRowLike } from "./project-groups";
+import { findProjectGroup, groupProjects, ProjectRowLike } from "./project-groups";
 
 function row(
   id: string,
@@ -85,5 +85,39 @@ describe("groupProjects", () => {
       row("p1", "/w/gateway"),
     ]);
     expect(withBase[0].directory).toBe("/w/gateway");
+  });
+});
+
+describe("findProjectGroup", () => {
+  const rows = [
+    row("p1", "/w/gateway"),
+    row("p2", "/w/gateway_v2", false, 1500, 2500),
+    row("p9", "/w/other"),
+  ];
+
+  it("returns the nominal meta and only the rows of the group for a real member id", () => {
+    expect(findProjectGroup("p2", rows)).toEqual({
+      meta: {
+        id: "nominal:gateway",
+        name: "gateway",
+        directory: "/w/gateway",
+        directories: ["/w/gateway", "/w/gateway_v2"],
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2500),
+      },
+      rows: [rows[0], rows[1]],
+    });
+  });
+
+  it("returns null for an unknown real id", () => {
+    expect(findProjectGroup("nope", rows)).toBeNull();
+  });
+
+  it("returns the group for a synthetic nominal id", () => {
+    const found = findProjectGroup("nominal:gateway", rows);
+    expect(found?.meta.id).toBe("nominal:gateway");
+    expect(found?.meta.name).toBe("gateway");
+    expect(found?.rows).toEqual([rows[0], rows[1]]);
   });
 });

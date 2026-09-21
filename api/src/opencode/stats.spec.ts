@@ -24,6 +24,20 @@ test("stat computes median, quartiles and range (odd count)", () => {
   });
 });
 
+test("stat sorts an unsorted input and does not mutate it", () => {
+  const input = [3, 1, 2];
+  expect(stat(input)).toEqual({
+    count: 3,
+    median: 2,
+    p25: 1.5,
+    p75: 2.5,
+    min: 1,
+    max: 3,
+    mean: 2,
+  });
+  expect(input).toEqual([3, 1, 2]);
+});
+
 test("stat interpolates quartiles (even count)", () => {
   const s = stat([0.02, 0.03, 0.04, 0.1]);
   expect(s.median).toBeCloseTo(0.035);

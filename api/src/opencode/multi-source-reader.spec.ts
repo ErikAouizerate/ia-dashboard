@@ -8,9 +8,7 @@ import { configFingerprint } from "./config-fingerprint";
 const FIXTURE_CONFIG = { model: "m", plugins: ["a", "b"], skills: ["s"] };
 const CID = configFingerprint(FIXTURE_CONFIG)!;
 
-function seedDb(path: string, sessionId: string, timeUpdated: number, title: string) {
-  const db = new Database(path);
-  db.exec(`CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
+const SCHEMA = `CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
     CREATE TABLE session (id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
       title TEXT, model TEXT, agent TEXT, cost REAL, tokens_input INTEGER, tokens_output INTEGER,
       tokens_reasoning INTEGER, tokens_cache_read INTEGER, tokens_cache_write INTEGER,
@@ -18,31 +16,179 @@ function seedDb(path: string, sessionId: string, timeUpdated: number, title: str
       time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);
     CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, data TEXT, time_created INTEGER, time_updated INTEGER);
     CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT, time_created INTEGER, time_updated INTEGER);
-    CREATE TABLE todo (session_id TEXT, content TEXT, status TEXT, priority TEXT, position INTEGER, time_created INTEGER, time_updated INTEGER);`);
-  db.prepare("INSERT INTO project VALUES (?,?,?)").run("proj1", "/w/app", null);
+    CREATE TABLE todo (session_id TEXT, content TEXT, status TEXT, priority TEXT, position INTEGER, time_created INTEGER, time_updated INTEGER);`;
+
+interface SeedOptions {
+  cost?: number;
+  tokensInput?: number;
+  tokensOutput?: number;
+  directory?: string;
+  model?: string;
+  parentId?: string | null;
+  timeCreated?: number;
+  projectId?: string;
+  projectWorktree?: string | null;
+  projectName?: string | null;
+}
+
+function writeSession(
+  db: Database.Database,
+  sessionId: string,
+  timeUpdated: number,
+  title: string,
+  opts: SeedOptions = {},
+) {
+  const o = {
+    cost: 1,
+    tokensInput: 0,
+    tokensOutput: 0,
+    directory: "/w/app",
+    model: '{"id":"m"}',
+    parentId: null as string | null,
+    timeCreated: timeUpdated - 100,
+    projectId: "proj1",
+    projectWorktree: "/w/app" as string | null,
+    projectName: null as string | null,
+    ...opts,
+  };
+  db.prepare("INSERT OR IGNORE INTO project VALUES (?,?,?)").run(
+    o.projectId,
+    o.projectWorktree,
+    o.projectName,
+  );
   db.prepare(`INSERT INTO session VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     sessionId,
-    "proj1",
-    null,
-    "/w/app",
+    o.projectId,
+    o.parentId,
+    o.directory,
     null,
     title,
-    '{"id":"m"}',
+    o.model,
     "build",
-    1,
+    o.cost,
+    o.tokensInput,
+    o.tokensOutput,
     0,
     0,
     0,
     0,
     0,
     0,
-    0,
-    0,
-    timeUpdated - 100,
+    o.timeCreated,
     timeUpdated,
     null,
   );
+}
+
+function seedDb(path: string, sessionId: string, timeUpdated: number, title: string, opts: SeedOptions = {}) {
+  const db = new Database(path);
+  db.exec(SCHEMA);
+  writeSession(db, sessionId, timeUpdated, title, opts);
   db.close();
+}
+
+function addSession(path: string, sessionId: string, timeUpdated: number, title: string, opts: SeedOptions = {}) {
+  const db = new Database(path);
+  writeSession(db, sessionId, timeUpdated, title, opts);
+  db.close();
+}
+
+function seedPart(path: string, sessionId: string, t0: number, t1: number) {
+  const db = new Database(path);
+  db.prepare("INSERT INTO message VALUES (?,?,?,?,?)").run(`msg-${sessionId}`, sessionId, "{}", t0, t1);
+  db.prepare("INSERT INTO part VALUES (?,?,?,?,?,?)").run(
+    `part-${sessionId}`,
+    `msg-${sessionId}`,
+    sessionId,
+    JSON.stringify({ type: "step-finish" }),
+    t0,
+    t1,
+  );
+  db.close();
+}
+
+const DAY1 = Date.UTC(2026, 0, 5);
+const DAY2 = Date.UTC(2026, 0, 6);
+const DAY3 = Date.UTC(2026, 0, 7);
+
+function setupRich() {
+  const hostDir = mkdtempSync(join(tmpdir(), "rich-host-"));
+  const hostDb = join(hostDir, "opencode.db");
+  seedDb(hostDb, "h1", DAY1 + 2000, "h1", {
+    directory: "/w/app",
+    cost: 2,
+    tokensInput: 10,
+    tokensOutput: 20,
+    timeCreated: DAY1 + 1000,
+    projectId: "proj1",
+    projectName: "host-app",
+  });
+  addSession(hostDb, "h2", DAY2 + 2000, "h2", {
+    directory: "/w/app",
+    cost: 3,
+    tokensInput: 30,
+    tokensOutput: 40,
+    timeCreated: DAY2 + 1000,
+    projectId: "proj2",
+    projectWorktree: "/w/other",
+  });
+
+  const store = mkdtempSync(join(tmpdir(), "rich-store-"));
+  const gen = join(store, "devbox-abc");
+  mkdirSync(gen, { recursive: true });
+  const vmDb = join(gen, "opencode.db");
+  seedDb(vmDb, "v1", DAY1 + 6000, "v1", {
+    directory: "/w/app",
+    cost: 7,
+    tokensInput: 70,
+    tokensOutput: 80,
+    timeCreated: DAY1 + 5000,
+    projectId: "proj1",
+    projectName: "vm-app",
+  });
+  addSession(vmDb, "v2", DAY3 + 2000, "v2", {
+    directory: "/w/other",
+    cost: 1,
+    tokensInput: 1,
+    tokensOutput: 1,
+    timeCreated: DAY3 + 1000,
+    projectId: "proj1",
+    projectName: "vm-app",
+  });
+
+  return { hostDb, store };
+}
+
+function setupTime() {
+  const hostDir = mkdtempSync(join(tmpdir(), "time-host-"));
+  const hostDb = join(hostDir, "opencode.db");
+  seedDb(hostDb, "t1", 5000, "t1", { directory: "/w/app", timeCreated: 0 });
+  seedPart(hostDb, "t1", 1000, 4000);
+
+  const store = mkdtempSync(join(tmpdir(), "time-store-"));
+  const gen = join(store, "devbox-abc");
+  mkdirSync(gen, { recursive: true });
+  const vmDb = join(gen, "opencode.db");
+  seedDb(vmDb, "t2", 5000, "t2", { directory: "/w/app", timeCreated: 0 });
+  seedPart(vmDb, "t2", 1000, 2500);
+
+  return { hostDb, store };
+}
+
+function setupDup() {
+  const hostDir = mkdtempSync(join(tmpdir(), "dup-host-"));
+  const hostDb = join(hostDir, "opencode.db");
+  seedDb(hostDb, "dup-host-newer", 5000, "host-newer", { timeCreated: 4000 });
+  addSession(hostDb, "dup-vm-newer", 8000, "host-older", { timeCreated: 7000 });
+
+  const store = mkdtempSync(join(tmpdir(), "dup-store-"));
+  const gen = join(store, "devbox-abc");
+  mkdirSync(gen, { recursive: true });
+  const vmDb = join(gen, "opencode.db");
+  seedDb(vmDb, "dup-host-newer", 4000, "vm-older", { timeCreated: 3000 });
+  addSession(vmDb, "dup-vm-newer", 9000, "vm-newer", { timeCreated: 7000 });
+
+  return { hostDb, store };
 }
 
 function setup() {
@@ -216,4 +362,108 @@ test("merges aggregates across sources and exposes bySource", () => {
 
   expect(reader.getSessionTree("v1")).toEqual(["v1"]);
   expect(reader.getSession("v1")?.source).toBe("vm:devbox-abc");
+});
+
+test("aggregateByDirectoryAndModel merges the same directory+model across sources, summing scalars and concatenating bySource", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const app = reader
+    .aggregateByDirectoryAndModel({})
+    .filter((r) => r.directory === "/w/app" && r.model === "m");
+  expect(app).toHaveLength(1);
+  expect(app[0].totalCost).toBe(12);
+  expect(app[0].tokensInput).toBe(110);
+  expect(app[0].tokensOutput).toBe(140);
+  expect(app[0].sessions).toBe(3);
+  expect(app[0].bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+  expect(app[0].bySource.map((s) => s.sessions).sort((a, b) => a - b)).toEqual([1, 2]);
+});
+
+test("aggregateByDirectory merges one row per directory with min firstSeen and max lastSeen", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const app = reader.aggregateByDirectory({}).filter((r) => r.directory === "/w/app");
+  expect(app).toHaveLength(1);
+  expect(app[0].firstSeen).toBe(DAY1 + 1000);
+  expect(app[0].lastSeen).toBe(DAY2 + 2000);
+  expect(app[0].totalCost).toBe(12);
+  expect(app[0].sessions).toBe(3);
+  expect(app[0].bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+});
+
+test("aggregateByDay merges the same day across sources and sorts days ascending", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const days = reader.aggregateByDay({});
+  expect(days.map((d) => d.day)).toEqual(["2026-01-05", "2026-01-06", "2026-01-07"]);
+  const d1 = days.find((d) => d.day === "2026-01-05")!;
+  expect(d1.totalCost).toBe(9);
+  expect(d1.tokensInput).toBe(80);
+  expect(d1.tokensOutput).toBe(100);
+  expect(d1.sessions).toBe(2);
+  expect(d1.bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+});
+
+test("aggregateAll sums totals across sources with one bySource entry per source", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const all = reader.aggregateAll({});
+  expect(all.totalCost).toBe(13);
+  expect(all.tokensInput).toBe(111);
+  expect(all.tokensOutput).toBe(141);
+  expect(all.sessions).toBe(4);
+  expect(all.bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+  expect(all.bySource.reduce((n, s) => n + s.sessions, 0)).toBe(4);
+});
+
+test("listDirectories unions directories, dedups and takes min firstSeen / max lastSeen", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const dirs = reader.listDirectories();
+  expect(dirs.map((d) => d.directory).sort()).toEqual(["/w/app", "/w/other"]);
+  const app = dirs.find((d) => d.directory === "/w/app")!;
+  expect(app.firstSeen).toBe(DAY1 + 1000);
+  expect(app.lastSeen).toBe(DAY2 + 2000);
+});
+
+test("listProjects unions projects and dedups by id (first source wins)", () => {
+  const { hostDb, store } = setupRich();
+  const reader = new MultiSourceReader(hostDb, store);
+  const projects = reader.listProjects();
+  expect(projects.map((p) => p.id).sort()).toEqual(["proj1", "proj2"]);
+  expect(projects.find((p) => p.id === "proj1")!.name).toBe("host-app");
+});
+
+test("timeByDirectory merges the same directory, summing durationMs and concatenating bySource", () => {
+  const { hostDb, store } = setupTime();
+  const reader = new MultiSourceReader(hostDb, store);
+  const rows = reader.timeByDirectory({});
+  expect(rows).toHaveLength(1);
+  expect(rows[0].directory).toBe("/w/app");
+  expect(rows[0].durationMs).toBe(4500);
+  expect(rows[0].bySource.map((s) => s.source).sort()).toEqual(["host", "vm:devbox-abc"]);
+  expect(rows[0].bySource.map((s) => s.durationMs).sort((a, b) => a - b)).toEqual([1500, 3000]);
+});
+
+test("listSessions dedups by id keeping the most recent timeUpdated whichever source order", () => {
+  const { hostDb, store } = setupDup();
+  const reader = new MultiSourceReader(hostDb, store);
+  const byId = Object.fromEntries(reader.listSessions({}).items.map((s) => [s.id, s]));
+  expect(byId["dup-host-newer"].source).toBe("host");
+  expect(byId["dup-vm-newer"].source).toBe("vm:devbox-abc");
+});
+
+test("getSessionTree routes to the owning source and unknown ids yield null/[]", () => {
+  const { hostDb, store } = setup();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  addSession(vmDb, "v1-child", 2500, "child", { parentId: "v1", timeCreated: 2100 });
+  addSession(hostDb, "h1-child", 1100, "child", { parentId: "h1", timeCreated: 950 });
+  const reader = new MultiSourceReader(hostDb, store);
+
+  expect(reader.getSessionTree("v1").sort()).toEqual(["v1", "v1-child"]);
+  expect(reader.getSessionTree("h1").sort()).toEqual(["h1", "h1-child"]);
+  expect(reader.getSubagentIds("v1")).toEqual(["v1-child"]);
+  expect(reader.getSessionTree("missing")).toEqual([]);
+  expect(reader.getSubagentIds("missing")).toEqual([]);
+  expect(reader.getSession("missing")).toBeNull();
 });
