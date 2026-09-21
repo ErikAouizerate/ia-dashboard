@@ -525,4 +525,54 @@ describe("ProjectsService", () => {
     ]);
   });
 
+  it("syncProjects marks a directory no longer seen as stale", async () => {
+    const db = mkChain([{ id: "gone", directory: "/home/user/gone", stale: false }]);
+    const svc = new ProjectsService(db as any, readerMock as any);
+    await svc.syncProjects();
+    expect(db.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncProjects leaves an already stale missing directory untouched", async () => {
+    const db = mkChain([{ id: "gone", directory: "/home/user/gone", stale: true }]);
+    const svc = new ProjectsService(db as any, readerMock as any);
+    await svc.syncProjects();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("findOne orders byModel by descending cost", async () => {
+    const reader = {
+      ...readerMock,
+      aggregateByDirectoryAndModel: jest.fn().mockReturnValue([
+        {
+          directory: "/home/user/gateway",
+          model: "cheap",
+          totalCost: 1,
+          tokensInput: 1,
+          tokensOutput: 1,
+          sessions: 1,
+        },
+        {
+          directory: "/home/user/gateway",
+          model: "pricey",
+          totalCost: 9,
+          tokensInput: 1,
+          tokensOutput: 1,
+          sessions: 1,
+        },
+      ]),
+    };
+    const db = mkChain([
+      {
+        id: "p1",
+        name: "gateway",
+        directory: "/home/user/gateway",
+        stale: false,
+        firstSeen: new Date(1000),
+        lastSeen: new Date(2000),
+      },
+    ]);
+    const svc = new ProjectsService(db as any, reader as any);
+    const detail = await svc.findOne("p1");
+    expect(detail.byModel.map((m) => m.model)).toEqual(["pricey", "cheap"]);
+  });
 });

@@ -181,4 +181,125 @@ describe("SessionsService", () => {
       expect.objectContaining({ directories: ["/p/gateway", "/p/gateway_v2"] }),
     );
   });
+
+  it("list resolves a real projectId to its stored directory", async () => {
+    const db = mkDb([{ id: "p2", directory: "/p/gateway_v2" }], []);
+    const svc = new SessionsService(sourcesMock as any, db as any);
+    await svc.list({ projectId: "p2" });
+    expect(sourcesMock.listSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ directory: "/p/gateway_v2" }),
+    );
+  });
+
+  it("list keeps the caller directory when an unknown projectId has no row", async () => {
+    const db = mkDb([], []);
+    const svc = new SessionsService(sourcesMock as any, db as any);
+    await svc.list({ projectId: "missing", directory: "/p/keep" });
+    expect(sourcesMock.listSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ directory: "/p/keep" }),
+    );
+  });
+
+  it("profile defaults capture-derived fields when the session has no capture", () => {
+    const reader = {
+      getSession: jest.fn().mockReturnValue({ id: "s1", source: "host", directory: "/p" }),
+      getSessionTree: jest.fn().mockReturnValue(["s1"]),
+      getSessionCalls: jest.fn().mockReturnValue([]),
+      getSessionSteps: jest.fn().mockReturnValue([]),
+      getSessionToolUsage: jest.fn().mockReturnValue([]),
+      capture: jest.fn().mockReturnValue(null),
+    };
+    const svc = new SessionsService(reader as any, mkDb([]) as any);
+    const p = svc.profile("s1");
+    expect(p?.offeredTools).toEqual([]);
+    expect(p?.config).toBeNull();
+    expect(p?.configId).toBeNull();
+    expect(p?.profile).toBeNull();
+  });
+
+  it("profile orders byModel by descending cost", () => {
+    const call = (model: string, cost: number) => ({
+      sessionId: "s1",
+      timeCreated: 1,
+      cost,
+      tokensInput: 1,
+      tokensOutput: 1,
+      tokensReasoning: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      model,
+      agent: "build",
+      mode: null,
+    });
+    const reader = {
+      getSession: jest.fn().mockReturnValue({ id: "s1", source: "host", directory: "/p" }),
+      getSessionTree: jest.fn().mockReturnValue(["s1"]),
+      getSessionCalls: jest.fn().mockReturnValue([call("cheap", 1), call("pricey", 9)]),
+      getSessionSteps: jest.fn().mockReturnValue([]),
+      getSessionToolUsage: jest.fn().mockReturnValue([]),
+      capture: jest.fn().mockReturnValue(null),
+    };
+    const svc = new SessionsService(reader as any, mkDb([]) as any);
+    expect(svc.profile("s1")?.byModel.map((m) => m.model)).toEqual(["pricey", "cheap"]);
+  });
+
+  it("compare computes per-tool deltas, totals deltas and offered differences", () => {
+    const call = (cost: number, tokensInput: number, tokensOutput: number) => ({
+      sessionId: "x",
+      timeCreated: 1,
+      cost,
+      tokensInput,
+      tokensOutput,
+      tokensReasoning: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      model: "m",
+      agent: "build",
+      mode: null,
+    });
+    const reader = {
+      getSession: jest.fn((id: string) =>
+        id === "missing" ? null : { id, source: "host", directory: "/p", parentId: null },
+      ),
+      getSessionTree: jest.fn((id: string) => [id]),
+      getSessionCalls: jest.fn((ids: string[]) =>
+        ids[0] === "a" ? [call(5, 50, 5)] : [call(2, 20, 2)],
+      ),
+      getSessionSteps: jest.fn((ids: string[]) =>
+        ids[0] === "a"
+          ? [{ sessionId: "a", cost: 5, tokensInput: 50, tokensOutput: 5, tokensReasoning: 0, cacheRead: 0, cacheWrite: 0 }]
+          : [{ sessionId: "b", cost: 2, tokensInput: 20, tokensOutput: 2, tokensReasoning: 0, cacheRead: 0, cacheWrite: 0 }],
+      ),
+      getSessionToolUsage: jest.fn((ids: string[]) =>
+        ids[0] === "a"
+          ? [
+              { tool: "bash", count: 3, completed: 3, error: 0 },
+              { tool: "read", count: 1, completed: 1, error: 0 },
+            ]
+          : [
+              { tool: "bash", count: 1, completed: 1, error: 0 },
+              { tool: "edit", count: 2, completed: 2, error: 0 },
+            ],
+      ),
+      capture: jest.fn((id: string) => ({
+        profile: null,
+        configId: null,
+        config: null,
+        offeredTools: id === "a" ? ["bash", "read"] : ["bash", "edit"],
+      })),
+    };
+    const svc = new SessionsService(reader as any, mkDb([]) as any);
+    const cmp = svc.compare("a", "b")!;
+    expect(cmp.delta.cost).toBe(-3);
+    expect(cmp.delta.tokensInput).toBe(-30);
+    expect(cmp.delta.tokensOutput).toBe(-3);
+    expect(Object.fromEntries(cmp.delta.tools.map((t) => [t.name, t.delta]))).toEqual({
+      bash: -2,
+      read: -1,
+      edit: 2,
+    });
+    expect(cmp.delta.offeredOnlyA).toEqual(["read"]);
+    expect(cmp.delta.offeredOnlyB).toEqual(["edit"]);
+    expect(svc.compare("a", "missing")).toBeNull();
+  });
 });

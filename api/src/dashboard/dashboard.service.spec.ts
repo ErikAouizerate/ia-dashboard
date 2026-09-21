@@ -326,4 +326,23 @@ describe("DashboardService", () => {
       { source: "vm:devbox", durationMs: 1600000 },
     ]);
   });
+
+  it("summary sorts byProject by descending cost and timeByProject by descending duration", async () => {
+    const reader = {
+      ...readerMock,
+      aggregateByDirectory: jest.fn().mockReturnValue([
+        { directory: "/p/a", name: "a", totalCost: 10, sessions: 2 },
+        { directory: "/p/b", name: "b", totalCost: 5, sessions: 1 },
+      ]),
+      aggregateByDirectoryAndModel: jest.fn().mockReturnValue([]),
+      timeByDirectory: jest.fn().mockReturnValue([
+        { directory: "/p/a", durationMs: 1000 },
+        { directory: "/p/b", durationMs: 5000 },
+      ]),
+    };
+    const svc = new DashboardService(reader as any, mkDb([]) as any);
+    const out = await svc.summary(7);
+    expect(out.byProject.map((p) => p.name)).toEqual(["a", "b"]);
+    expect(out.timeByProject.map((t) => t.name)).toEqual(["b", "a"]);
+  });
 });

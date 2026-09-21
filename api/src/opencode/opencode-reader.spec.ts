@@ -355,6 +355,38 @@ function buildRulesFixture(dir: string): string {
   return path;
 }
 
+function buildModelFixture(
+  dir: string,
+  opts: { model: string; directory: string | null; projectId: string | null },
+): string {
+  const path = join(dir, "opencode.db");
+  const db = new Database(path);
+  db.exec(`CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
+           CREATE TABLE session (
+             id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
+             title TEXT, model TEXT, agent TEXT,
+             cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+             tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+             summary_additions INTEGER, summary_deletions INTEGER, summary_files INTEGER,
+             time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);`);
+  if (opts.projectId) {
+    db.prepare("INSERT INTO project (id, worktree, name) VALUES (?,?,?)").run(
+      opts.projectId,
+      null,
+      null,
+    );
+  }
+  db.prepare(
+    `INSERT INTO session (id, project_id, parent_id, directory, path, title, model, agent, cost,
+       tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+       summary_additions, summary_deletions, summary_files, time_created, time_updated, time_compacting)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run("x", opts.projectId, null, opts.directory, null, "X", opts.model, "build",
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1000, 2000, null);
+  db.close();
+  return path;
+}
+
 describe("OpenCodeReader", () => {
   let dir: string;
   let path: string;
@@ -465,6 +497,49 @@ describe("OpenCodeReader", () => {
     expect(page.items.map((s) => s.id)).toEqual(["s1"]);
   });
 
+  it("filters sessions by a created-at window", () => {
+    const from = reader.listSessions({ from: new Date(1785702400000).toISOString() });
+    expect(from.items.map((s) => s.id)).toEqual(["s1-sub"]);
+    const to = reader.listSessions({ to: new Date(1785702292033).toISOString() });
+    expect(to.items.map((s) => s.id)).toEqual(["s1"]);
+  });
+
+  it("falls back to the raw model string when it is not JSON", () => {
+    const p = buildModelFixture(mkdtempSync(join(tmpdir(), "oc-model-")), {
+      model: "not-json",
+      directory: "/w/a",
+      projectId: "proj1",
+    });
+    const r = new OpenCodeReader(p);
+    r.open();
+    expect(r.getSession("x")?.model).toBe("not-json");
+    r.close();
+  });
+
+  it("maps a JSON model without an id to an empty string", () => {
+    const p = buildModelFixture(mkdtempSync(join(tmpdir(), "oc-model-")), {
+      model: '{"foo":1}',
+      directory: "/w/a",
+      projectId: "proj1",
+    });
+    const r = new OpenCodeReader(p);
+    r.open();
+    expect(r.getSession("x")?.model).toBe("");
+    r.close();
+  });
+
+  it("names a session with no directory after its global project id", () => {
+    const p = buildModelFixture(mkdtempSync(join(tmpdir(), "oc-model-")), {
+      model: '{"id":"m"}',
+      directory: null,
+      projectId: "global",
+    });
+    const r = new OpenCodeReader(p);
+    r.open();
+    expect(r.getSession("x")?.projectName).toBe("global");
+    r.close();
+  });
+
   it("lists parent sessions after a timestamp", () => {
     const all = reader.listParentSessions({});
     expect(all.map((s) => s.id)).toEqual(["s1"]);
@@ -520,6 +595,10 @@ describe("OpenCodeReader", () => {
       const claude = gateway.find((r) => r.model === "claude-sonnet-4-20250514");
       expect(claude?.sessions).toBe(1);
       expect(rows.filter((r) => r.directory === "/home/user/api").length).toBe(2);
+    });
+
+    it("lists distinct model ids sorted", () => {
+      expect(reader.listModels()).toEqual(["claude-sonnet-4-20250514", "deepseek-v4-flash-free"]);
     });
 
     it("filters sessions by multiple directories", () => {
@@ -604,6 +683,13 @@ describe("OpenCodeReader", () => {
       expect(betaDup?.sessions).toBe(1);
       expect(betaDup?.totalCost).toBeCloseTo(4.0);
       expect(rows.filter((r) => r.model === "dup-model")).toHaveLength(3);
+    });
+
+    it("aggregateByDirectoryAndModel sorts rows by descending total cost", () => {
+      const rows = reader.aggregateByDirectoryAndModel({});
+      expect(rows[0].directory).toBe("/repo/gamma");
+      expect(rows[0].totalCost).toBeCloseTo(9.0);
+      expect(rows[rows.length - 1].totalCost).toBeLessThan(rows[0].totalCost);
     });
 
     it("aggregateByModel sums and merges equal parsed ids", () => {

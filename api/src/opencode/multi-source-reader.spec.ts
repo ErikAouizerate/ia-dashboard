@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -466,4 +466,124 @@ test("getSessionTree routes to the owning source and unknown ids yield null/[]",
   expect(reader.getSessionTree("missing")).toEqual([]);
   expect(reader.getSubagentIds("missing")).toEqual([]);
   expect(reader.getSession("missing")).toBeNull();
+});
+
+test("routes tree queries to the owning source and returns empty for unknown ids", () => {
+  const { hostDb, store } = setup();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  seedPart(vmDb, "v1", 1000, 4000);
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.getSessionSteps(["v1"])).toHaveLength(1);
+  expect(reader.getSessionCalls(["v1"])).toEqual([]);
+  expect(reader.getSessionToolUsage(["v1"])).toEqual([]);
+  expect(reader.getSessionSteps(["missing"])).toEqual([]);
+});
+
+test("open and close delegate to every source without throwing", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(() => reader.open()).not.toThrow();
+  expect(() => reader.close()).not.toThrow();
+});
+
+test("getSession picks the newest copy across sources", () => {
+  const { hostDb, store } = setupDup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.getSession("dup-host-newer")?.source).toBe("host");
+  expect(reader.getSession("dup-vm-newer")?.source).toBe("vm:devbox-abc");
+});
+
+test("listModels unions and sorts model ids across sources", () => {
+  const { hostDb, store } = setup();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  addSession(vmDb, "v2", 3000, "other", { model: '{"id":"aaa-model"}', timeCreated: 2500 });
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listModels()).toEqual(["aaa-model", "m"]);
+});
+
+test("listParentSessions merges parents across sources in creation order", () => {
+  const { hostDb, store } = setup();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  addSession(vmDb, "v0", 500, "early", { timeCreated: 400 });
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listParentSessions({}).map((s) => s.id)).toEqual(["v0", "h1", "v1"]);
+});
+
+test("listConfigs scopes to the requested directories", () => {
+  const { hostDb, store } = setup();
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.listConfigs({ directories: ["/w/none"] })).toEqual([]);
+  expect(reader.listConfigs({ directories: ["/w/app"] })).toHaveLength(2);
+});
+
+test("accumulates bySource totals for several sessions sharing one config", () => {
+  const { hostDb, store } = setup();
+  const dir = join(store, "devbox-abc");
+  addSession(join(dir, "opencode.db"), "v2", 3000, "second", {
+    timeCreated: 2500,
+    cost: 4,
+    tokensInput: 4,
+    tokensOutput: 4,
+  });
+  appendFileSync(
+    join(dir, "captures.jsonl"),
+    JSON.stringify({ sessionId: "v2", configId: "cid1", profile: "muse-spark" }) + "\n",
+  );
+  const reader = new MultiSourceReader(hostDb, store);
+  const detail = reader.getConfig(CID)!;
+  expect(detail.sessions).toBe(2);
+  const vm = detail.bySource.find((s) => s.source === "vm:devbox-abc")!;
+  expect(vm.sessions).toBe(2);
+  expect(vm.totalCost).toBe(5);
+});
+
+test("sorts a config's models by descending cost", () => {
+  const { hostDb, store } = setup();
+  const dir = join(store, "devbox-abc");
+  addSession(join(dir, "opencode.db"), "v2", 3000, "big", {
+    model: '{"id":"big"}',
+    cost: 9,
+    timeCreated: 2500,
+  });
+  appendFileSync(
+    join(dir, "captures.jsonl"),
+    JSON.stringify({ sessionId: "v2", configId: "cid1", profile: "muse-spark" }) + "\n",
+  );
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.getConfig(CID)!.models.map((m) => m.model)).toEqual(["big", "m"]);
+});
+
+test("keeps only string entries and ignores a non-array config section", () => {
+  const { hostDb, store } = setup();
+  const gen = join(store, "devbox-badcfg");
+  mkdirSync(gen, { recursive: true });
+  seedDb(join(gen, "opencode.db"), "vb", 5000, "badcfg");
+  const config = { model: "m", plugins: ["a", 42, "b"], skills: "nope" };
+  writeFileSync(join(gen, "configs.json"), JSON.stringify({ id: "raw-bad", config }) + "\n");
+  writeFileSync(
+    join(gen, "captures.jsonl"),
+    JSON.stringify({ sessionId: "vb", configId: "raw-bad", profile: "p" }) + "\n",
+  );
+  const reader = new MultiSourceReader(hostDb, store);
+  const cfg = reader.getConfig(configFingerprint(config)!)!;
+  expect(cfg.plugins).toEqual(["a", "b"]);
+  expect(cfg.skills).toEqual([]);
+});
+
+test("aggregateByModel sorts models by descending total cost", () => {
+  const { hostDb, store } = setup();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  addSession(vmDb, "v2", 3000, "cheap", { model: '{"id":"cheap"}', cost: 0.1, timeCreated: 2500 });
+  addSession(vmDb, "v3", 4000, "pricey", { model: '{"id":"pricey"}', cost: 9, timeCreated: 3500 });
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.aggregateByModel({}).map((r) => r.model)).toEqual(["pricey", "m", "cheap"]);
+});
+
+test("timeByDirectory sorts directories by descending duration", () => {
+  const { hostDb, store } = setupTime();
+  const vmDb = join(store, "devbox-abc", "opencode.db");
+  addSession(vmDb, "t3", 9000, "t3", { directory: "/w/fast", timeCreated: 0 });
+  seedPart(vmDb, "t3", 1000, 1500);
+  const reader = new MultiSourceReader(hostDb, store);
+  expect(reader.timeByDirectory({}).map((r) => r.directory)).toEqual(["/w/app", "/w/fast"]);
 });

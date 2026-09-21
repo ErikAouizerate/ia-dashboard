@@ -23,6 +23,12 @@ test("fingerprint ignores plugin, mcp and skill order", () => {
   expect(configFingerprint(base)).toBe(configFingerprint(reordered));
 });
 
+test("fingerprint is insensitive to object key insertion order", () => {
+  const a = { model: "m", plugins: ["a"], mcp: [{ name: "x", enabled: true }] };
+  const b = { mcp: [{ enabled: true, name: "x" }], plugins: ["a"], model: "m" };
+  expect(configFingerprint(a)).toBe(configFingerprint(b));
+});
+
 test("fingerprint changes when content changes", () => {
   expect(configFingerprint(base)).not.toBe(
     configFingerprint({ ...base, plugins: ["a", "b", "d"] }),
