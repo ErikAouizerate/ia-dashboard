@@ -1,13 +1,6 @@
-export const MODEL_COLORS = [
-  "bg-blue-500",
-  "bg-emerald-400",
-  "bg-amber-400",
-  "bg-violet-500",
-  "bg-rose-400",
-  "bg-cyan-500",
-  "bg-orange-400",
-  "bg-teal-400",
-];
+export function modelColorAt(index: number): string {
+  return `hsl(${(index * 137.508) % 360} 65% 55%)`;
+}
 
 export function buildModelColorMap(
   projects: { models: { model: string }[] }[],
@@ -16,9 +9,9 @@ export function buildModelColorMap(
   for (const p of projects) {
     for (const m of p.models) {
       if (!map.has(m.model)) {
-        map.set(m.model, MODEL_COLORS[map.size % MODEL_COLORS.length]);
+        map.set(m.model, modelColorAt(map.size));
       }
     }
   }
-  return (model) => map.get(model) ?? MODEL_COLORS[0];
+  return (model) => map.get(model) ?? modelColorAt(0);
 }
