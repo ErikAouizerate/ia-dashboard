@@ -5,8 +5,9 @@ Date : 2026-08-31
 ## Objectif
 
 Sur le dashboard, afficher pour chaque projet le ratio des modèles utilisés
-(graphiques à barres empilées par modèle) et le temps passé (durée des sessions).
-Ajouter aussi le temps total sur les cartes de la liste des projets.
+(graphiques à barres empilées par modèle) et le temps passé (temps de traitement
+actif des sessions). Ajouter aussi le temps total sur les cartes de la liste des
+projets.
 
 ## Contexte
 
@@ -14,10 +15,19 @@ Ajouter aussi le temps total sur les cartes de la liste des projets.
   coût, tokens, sessions), `aggregateByModel` (par modèle). **Il n'existe pas
   d'agrégat par (répertoire × modèle)** ni de durée.
 - Aucun champ « durée » n'existe dans la table `session`. Seuls `time_created`,
-  `time_updated` et `time_compacting` sont disponibles. Proxy retenu :
-  `time_updated − time_created`, sommé sur les **sessions parentes uniquement**
-  (`parent_id IS NULL`, donc pas de double comptage des subagents), en excluant
-  les durées ≤ 0.
+  `time_updated` et `time_compacting` sont disponibles. Règle retenue : le **temps
+  de traitement actif**, calculé par répertoire à partir des intervalles des `part`
+  de la session.
+  - Chaque part contribue l'intervalle `[time_created, time_updated]`, **plafonné à
+    2 h** (`PART_CAP_MS`) pour borner les parts anormalement longs.
+  - Au sein d'une session, les intervalles qui se chevauchent ou se prolongent sont
+    **fusionnés** ; les créneaux disjoints sont additionnés.
+  - Seules les **sessions parentes** comptent (`parent_id IS NULL`, pas de double
+    comptage des subagents) et les parts sans durée (`time_updated <= time_created`)
+    sont ignorées.
+  - Le proxy initialement envisagé (durée murale `time_updated − time_created` de la
+    session) a été écarté : il englobait les temps d'inactivité. On mesure donc le
+    temps réellement actif, borné par le plafond par part.
 - Bug existant : `ProjectsService.findOne` renvoie `byModel` en global
   (`aggregateByModel({})`, non filtré par répertoire) et ce champ n'est pas
   affiché dans l'UI. On en profite pour le scoper au répertoire du projet.
@@ -37,9 +47,12 @@ puis enrichissement des réponses API et rendu empilé côté webapp.
      puis fusion des doublons de modèles (même logique `parseModel` que
      `aggregateByModel`). Retourne
      `Array<{ directory, model, totalCost, tokensInput, tokensOutput, sessions }>`.
-   - `timeByDirectory({ from = 0 })` : `SUM(time_updated - time_created)` où
-     `parent_id IS NULL AND time_updated > time_created`, `GROUP BY directory`.
-     Retourne `Array<{ directory, durationMs }>`.
+   - `timeByDirectory({ from = 0 })` : lit les `part` des sessions parentes
+     (`parent_id IS NULL`, `s.time_created >= @from`, `p.time_updated >
+     p.time_created`), plafonne chaque intervalle à `PART_CAP_MS = 2 h`, fusionne
+     les intervalles qui se chevauchent au sein d'une même session, puis somme les
+     créneaux par session et par répertoire. Retourne
+     `Array<{ directory, durationMs, bySource }>` trié par durée décroissante.
 2. **`api/src/dashboard/dashboard.service.ts`** — `summary()` enrichit `byProject` :
    chaque entrée reçoit `models: [{ model, totalCost, tokensInput, tokensOutput,
    sessions, share }]` (share = % des sessions du projet), reconstruit depuis
@@ -77,8 +90,9 @@ graphiques d'un même projet. Pas de mapping global par nom de modèle.
 
 - `api/src/opencode/opencode-reader.spec.ts` : nouveaux cas pour
   `aggregateByDirectoryAndModel` (groupement répertoire×modèle, fusion de
-  modèles JSON dupliqués) et `timeByDirectory` (exclusion subagents, exclusion
-  durées ≤ 0).
+  modèles JSON dupliqués) et `timeByDirectory` (temps de traitement actif :
+  exclusion des subagents, des durées ≤ 0, plafond de 2 h par part, fusion des
+  intervalles qui se chevauchent, somme sur plusieurs sessions).
 - `api/src/dashboard/dashboard.service.spec.ts` : `summary` renvoie `models` avec
   `share` et `timeByProject`.
 - `webapp/src/views/DashboardView.spec.tsx` : fixtures étendues, assertions sur
