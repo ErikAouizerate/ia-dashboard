@@ -59,6 +59,13 @@ test("normalizeConfig fully sorts mcp with at least three entries whatever the o
   expect((n.mcp as { name: string }[]).map((m) => m.name)).toEqual(["alpha", "mu", "zeta"]);
 });
 
+test("normalizeConfig sorts mcp entries that have no name", () => {
+  const n = normalizeConfig({
+    mcp: [{ name: "b" }, { enabled: true }, { name: "a" }],
+  }) as Record<string, unknown>;
+  expect((n.mcp as { name?: string }[]).map((m) => m.name ?? "")).toEqual(["", "a", "b"]);
+});
+
 test("fingerprint is order-insensitive with at least three plugins, mcp and skills", () => {
   const many = {
     model: "m",

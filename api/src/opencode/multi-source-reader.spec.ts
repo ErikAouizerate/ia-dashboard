@@ -509,6 +509,15 @@ test("listParentSessions merges parents across sources in creation order", () =>
   expect(reader.listParentSessions({}).map((s) => s.id)).toEqual(["v0", "h1", "v1"]);
 });
 
+test("listParentSessions keeps the newest copy of a duplicated parent", () => {
+  const { hostDb, store } = setupDup();
+  const reader = new MultiSourceReader(hostDb, store);
+  const rows = reader.listParentSessions({});
+  expect(rows.map((s) => s.id)).toEqual(["dup-host-newer", "dup-vm-newer"]);
+  expect(rows.find((s) => s.id === "dup-host-newer")?.source).toBe("host");
+  expect(rows.find((s) => s.id === "dup-vm-newer")?.source).toBe("vm:devbox-abc");
+});
+
 test("listConfigs scopes to the requested directories", () => {
   const { hostDb, store } = setup();
   const reader = new MultiSourceReader(hostDb, store);

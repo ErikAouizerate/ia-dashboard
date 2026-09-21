@@ -387,6 +387,41 @@ function buildModelFixture(
   return path;
 }
 
+function buildExtendFixture(dir: string): string {
+  const path = join(dir, "opencode.db");
+  const db = new Database(path);
+  db.exec(`CREATE TABLE session (
+             id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
+             title TEXT, model TEXT, agent TEXT,
+             cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+             tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+             summary_additions INTEGER, summary_deletions INTEGER, summary_files INTEGER,
+             time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);
+           CREATE TABLE message (
+             id TEXT PRIMARY KEY, session_id TEXT, data TEXT,
+             time_created INTEGER, time_updated INTEGER);
+           CREATE TABLE part (
+             id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT,
+             time_created INTEGER, time_updated INTEGER);`);
+  db.prepare(
+    `INSERT INTO session (id, project_id, parent_id, directory, path, title, model, agent, cost,
+       tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+       summary_additions, summary_deletions, summary_files, time_created, time_updated, time_compacting)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run("e1", null, null, "/w/x", null, "E", '{"id":"m"}', "build",
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10000, null);
+  db.prepare(
+    "INSERT INTO message (id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?)",
+  ).run("e1-m", "e1", JSON.stringify({ role: "assistant" }), 1000, 2500);
+  const part = db.prepare(
+    "INSERT INTO part (id, message_id, session_id, data, time_created, time_updated) VALUES (?,?,?,?,?,?)",
+  );
+  part.run("e1-p1", "e1-m", "e1", JSON.stringify({ type: "text" }), 1000, 2000);
+  part.run("e1-p2", "e1-m", "e1", JSON.stringify({ type: "tool" }), 1500, 2500);
+  db.close();
+  return path;
+}
+
 describe("OpenCodeReader", () => {
   let dir: string;
   let path: string;
@@ -525,6 +560,14 @@ describe("OpenCodeReader", () => {
     const r = new OpenCodeReader(p);
     r.open();
     expect(r.getSession("x")?.model).toBe("");
+    r.close();
+  });
+
+  it("timeByDirectory extends a span when an overlapping part runs past it", () => {
+    const p = buildExtendFixture(mkdtempSync(join(tmpdir(), "oc-extend-")));
+    const r = new OpenCodeReader(p);
+    r.open();
+    expect(r.timeByDirectory({}).find((x) => x.directory === "/w/x")?.durationMs).toBe(1500);
     r.close();
   });
 
