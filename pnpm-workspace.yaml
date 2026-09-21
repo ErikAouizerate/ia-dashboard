@@ -5,6 +5,11 @@ minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 blockExoticSubdeps: true
 strictDepBuilds: true
+
+# Non-interactive installs (VM agent, CI) must not abort when pnpm purges
+# node_modules after the store location changes (VM-local store vs host store).
+confirmModulesPurge: false
+
 trustPolicy: no-downgrade
 # chokidar@4.0.3 and semver@6.3.1 have no provenance attestation while an
 # earlier version did (transitive deps of @nestjs/cli / @babel). Reviewed:
