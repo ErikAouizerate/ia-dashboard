@@ -86,5 +86,77 @@ describe("ProjectsView", () => {
     );
     expect(html).toContain("/home/user/gateway");
     expect(html).toContain("/home/user/gateway_v2");
+    // Un groupe = un projet : le compteur compte les groupes, pas les répertoires.
+    expect(html).toContain("1 projets");
+  });
+
+  it("counts project groups, not member directories", () => {
+    const store = configureStore({
+      reducer: { projects: projectsReducer },
+      middleware: (gDM) => gDM({ thunk: false, serializableCheck: false }),
+      preloadedState: {
+        projects: {
+          items: [
+            {
+              id: "nominal:gateway",
+              name: "gateway",
+              directory: "/home/user/gateway",
+              directories: ["/home/user/gateway", "/home/user/gateway_v2"],
+              stale: false,
+              firstSeen: "2026-08-01T00:00:00.000Z",
+              lastSeen: "2026-08-31T00:00:00.000Z",
+              sessionCount: 3,
+              totalCost: 8,
+              tokensInput: 160,
+              tokensOutput: 320,
+              durationMs: 9000000,
+            },
+            {
+              id: "p2",
+              name: "infrastructure",
+              directory: "/home/user/infrastructure",
+              directories: ["/home/user/infrastructure"],
+              stale: false,
+              firstSeen: "2026-08-01T00:00:00.000Z",
+              lastSeen: "2026-08-30T00:00:00.000Z",
+              sessionCount: 1,
+              totalCost: 2,
+              tokensInput: 40,
+              tokensOutput: 80,
+              durationMs: 3600000,
+            },
+          ],
+          current: null,
+          loading: false,
+          error: null,
+        },
+      },
+    });
+    const html = renderToStaticMarkup(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={["/projects"]}>
+          <ProjectsView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("2 projets");
+    expect(html).toContain("gateway");
+    expect(html).toContain("infrastructure");
+  });
+
+  it("does not append member directories when a project has a single directory", () => {
+    const html = renderToStaticMarkup(
+      <Provider store={makeStore()}>
+        <MemoryRouter initialEntries={["/projects"]}>
+          <ProjectsView />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(html).toContain("/home/user/gateway");
+    const directoryLine =
+      html.match(
+        /<div class="mt-1 truncate text-sm text-gray-500"[^>]*>[\s\S]*?<\/div>/,
+      )?.[0] ?? "";
+    expect(directoryLine).not.toContain("<span");
   });
 });

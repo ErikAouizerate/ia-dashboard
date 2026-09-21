@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { MemoryRouter } from "react-router-dom";
 import { dashboardReducer } from "../store/dashboard";
+import { apiMiddleware } from "../store/apiMiddleware";
 import { DashboardView } from "./DashboardView";
+import { EXCLUDED_PROJECT_NAMES } from "../lib/excludedProjects";
 
 function makeStore(summary: any, loading = false, periodDays = 7) {
   return configureStore({
@@ -157,6 +160,8 @@ describe("DashboardView", () => {
     expect(html).toContain("Coût moyen / 1M tokens par modèle");
     expect(html).toContain("muse-spark");
     expect(html).toContain("€/M");
+    // C2 : légende globale unique (rendue une seule fois, pas par graphe).
+    expect(html.split(">Modèles<").length - 1).toBe(1);
   });
 
   it("renders a Tout button for the all-time filter", () => {
@@ -170,24 +175,48 @@ describe("DashboardView", () => {
     expect(html).toContain("Tout");
   });
 
-  it("hides excluded projects from the project lists", () => {
+  it("activates the Tout button only when the all-time period is selected", () => {
+    const button = (html: string, label: string) =>
+      html.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0] ?? "";
+    const render = (periodDays: number) =>
+      renderToStaticMarkup(
+        <Provider store={makeStore({ ...summary, periodDays }, false, periodDays)}>
+          <MemoryRouter initialEntries={["/"]}>
+            <DashboardView />
+          </MemoryRouter>
+        </Provider>,
+      );
+    const allTime = render(0);
+    expect(button(allTime, "Tout")).toContain("bg-blue-600");
+    expect(button(allTime, "7 jours")).toContain("border border-gray-300");
+    const lastSevenDays = render(7);
+    expect(button(lastSevenDays, "7 jours")).toContain("bg-blue-600");
+    expect(button(lastSevenDays, "Tout")).toContain("border border-gray-300");
+  });
+
+  it("hides every excluded project from both project lists while KPI stay global", () => {
+    const excludedProjects = EXCLUDED_PROJECT_NAMES.map((name) => ({
+      id: `nominal:${name}`,
+      name,
+      totalCost: 1,
+      sessions: 1,
+      tokensInput: 10,
+      tokensOutput: 10,
+      models: [],
+    }));
+    const totalCost = summary.totalCost + excludedProjects.length;
     const withExcluded = {
       ...summary,
-      byProject: [
-        ...summary.byProject,
-        {
-          id: "nominal:tmp",
-          name: "tmp",
-          totalCost: 1,
-          sessions: 1,
-          tokensInput: 10,
-          tokensOutput: 10,
-          models: [],
-        },
-      ],
+      totalCost,
+      byProject: [...summary.byProject, ...excludedProjects],
       timeByProject: [
         ...summary.timeByProject,
-        { directory: "/p/tmp", name: "tmp", durationMs: 60000, id: "nominal:tmp" },
+        ...EXCLUDED_PROJECT_NAMES.map((name) => ({
+          directory: `/p/${name}`,
+          name,
+          durationMs: 60000,
+          id: `nominal:${name}`,
+        })),
       ],
     };
     const html = renderToStaticMarkup(
@@ -197,8 +226,14 @@ describe("DashboardView", () => {
         </MemoryRouter>
       </Provider>,
     );
+    expect(html).toContain("Coût par projet");
+    expect(html).toContain("Temps passé par projet");
     expect(html).toContain("gateway");
-    expect(html).not.toContain("tmp");
+    for (const name of EXCLUDED_PROJECT_NAMES) {
+      expect(html).not.toContain(name);
+    }
+    // KPI calculés sur tout, y compris les projets exclus (12.34 + 4 x 1).
+    expect(html).toContain(`${totalCost.toFixed(2)} €`);
   });
 
   it("renders Tout as the sessions KPI subtitle when the all-time filter is active", () => {
@@ -210,5 +245,79 @@ describe("DashboardView", () => {
       </Provider>,
     );
     expect(html).toContain('<div class="text-sm text-gray-500">Tout</div>');
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+const stubDashboard = () =>
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => summary,
+      text: async () => "",
+    })),
+  );
+
+function renderBehavior() {
+  const actions: any[] = [];
+  const store = configureStore({
+    reducer: { dashboard: dashboardReducer },
+    middleware: (gDM) =>
+      gDM({ thunk: false, serializableCheck: false })
+        .concat(() => (next: any) => (action: any) => {
+          actions.push(action);
+          return next(action);
+        })
+        .concat(apiMiddleware),
+  });
+  render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={["/"]}>
+        <DashboardView />
+      </MemoryRouter>
+    </Provider>,
+  );
+  return { store, actions };
+}
+
+describe("DashboardView — comportement du filtre de période", () => {
+  const lastLoad = (actions: any[]) =>
+    actions.filter((a) => a.type === "DASHBOARD_LOAD_REQUESTED").at(-1);
+
+  it("déclenche DASHBOARD_LOAD_REQUESTED avec periodDays 7 puis 30", async () => {
+    stubDashboard();
+    const { actions } = renderBehavior();
+    await screen.findAllByText("12.34 €");
+    fireEvent.click(screen.getByRole("button", { name: "7 jours" }));
+    expect(lastLoad(actions).payload).toMatchObject({
+      periodDays: 7,
+      path: "/api/dashboard/summary?periodDays=7",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "30 jours" }));
+    expect(lastLoad(actions).payload.periodDays).toBe(30);
+    expect(lastLoad(actions).payload.path).toContain("periodDays=30");
+  });
+
+  it("déclenche DASHBOARD_LOAD_REQUESTED avec periodDays 0 pour « Tout »", async () => {
+    stubDashboard();
+    const { actions } = renderBehavior();
+    await screen.findAllByText("12.34 €");
+    fireEvent.click(screen.getByRole("button", { name: "Tout" }));
+    expect(lastLoad(actions).payload.periodDays).toBe(0);
+    expect(lastLoad(actions).payload.path).toContain("periodDays=0");
+  });
+
+  it("C1 : la période par défaut est « Tout » (0), non mémorisée", async () => {
+    stubDashboard();
+    const { store } = renderBehavior();
+    await screen.findAllByText("12.34 €");
+    expect(store.getState().dashboard.periodDays).toBe(0);
+    expect(screen.getByRole("button", { name: "Tout" }).className).toContain("bg-blue-600");
+    expect(screen.getByRole("button", { name: "7 jours" }).className).not.toContain(
+      "bg-blue-600",
+    );
   });
 });

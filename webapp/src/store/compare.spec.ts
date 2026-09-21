@@ -11,6 +11,16 @@ describe("compareReducer", () => {
     expect(s.loading).toBe(false);
   });
 
+  it("sets loading and clears the error on REQUESTED", () => {
+    const errored = compareReducer(undefined as any, {
+      type: "COMPARE_LOAD_ERROR",
+      payload: { error: new Error("boom") },
+    });
+    const s = compareReducer(errored, { type: "COMPARE_LOAD_REQUESTED" });
+    expect(s.loading).toBe(true);
+    expect(s.error).toBeNull();
+  });
+
   it("stores the error on ERROR", () => {
     const s = compareReducer(undefined as any, {
       type: "COMPARE_LOAD_ERROR",

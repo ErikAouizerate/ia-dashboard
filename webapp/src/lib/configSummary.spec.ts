@@ -26,6 +26,13 @@ describe("summarizeConfig", () => {
     ]);
   });
 
+  it("falls back to the modelID / small_model keys", () => {
+    expect(summarizeConfig({ modelID: "m-id", small_model: "s-id" })).toEqual([
+      { label: "Modèle", value: "m-id" },
+      { label: "Petit modèle", value: "s-id" },
+    ]);
+  });
+
   it("omits empty sections", () => {
     expect(summarizeConfig({ model: "m" })).toEqual([{ label: "Modèle", value: "m" }]);
   });
