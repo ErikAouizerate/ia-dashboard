@@ -7,7 +7,7 @@
     "start": "node dist/src/main",
     "start:dev": "nest start --watch",
     "test": "jest",
-    "test:mutation": "stryker run && node ../scripts/check-mutation.mjs reports/mutation/api.json --min-score 60 --max-nocov 110",
+    "test:mutation": "stryker run && node ../scripts/check-mutation.mjs reports/mutation/api.json --min-score 68 --max-nocov 20",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typecheck": "tsc --noEmit --incremental false",
     "db:generate": "drizzle-kit generate",
