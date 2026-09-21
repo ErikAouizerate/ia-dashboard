@@ -8,6 +8,7 @@ export function BarList({
   valueSuffix = "€",
   formatValue = (n: number) => n.toFixed(2),
   stackOf,
+  barColorOf,
 }: {
   rows: any[];
   valueOf: (r: any) => number;
@@ -15,7 +16,8 @@ export function BarList({
   to?: (r: any) => string | undefined;
   valueSuffix?: string;
   formatValue?: (n: number) => string;
-  stackOf?: (r: any) => Array<{ value: number; className: string; title?: string }>;
+  stackOf?: (r: any) => Array<{ value: number; className?: string; color?: string; title?: string }>;
+  barColorOf?: (r: any) => string;
 }) {
   const max = Math.max(1, ...rows.map(valueOf));
   return (
@@ -40,16 +42,22 @@ export function BarList({
                   {segments.map((seg, j) => (
                     <div
                       key={j}
-                      className={`h-full ${seg.className}`}
-                      style={{ width: `${(seg.value / max) * 100}%` }}
+                      className={`h-full ${seg.className ?? ""}`}
+                      style={{
+                        width: `${(seg.value / max) * 100}%`,
+                        backgroundColor: seg.color,
+                      }}
                       title={seg.title}
                     />
                   ))}
                 </div>
               ) : (
                 <div
-                  className="h-full rounded bg-blue-500"
-                  style={{ width: `${(valueOf(r) / max) * 100}%` }}
+                  className={`h-full rounded ${barColorOf ? "" : "bg-blue-500"}`}
+                  style={{
+                    width: `${(valueOf(r) / max) * 100}%`,
+                    backgroundColor: barColorOf?.(r),
+                  }}
                 />
               )}
             </div>

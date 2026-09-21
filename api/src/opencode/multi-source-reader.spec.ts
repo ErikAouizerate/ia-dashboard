@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { MultiSourceReader } from "./multi-source-reader";
+import { configFingerprint } from "./config-fingerprint";
+
+const FIXTURE_CONFIG = { model: "m", plugins: ["a", "b"], skills: ["s"] };
+const CID = configFingerprint(FIXTURE_CONFIG)!;
 
 function seedDb(path: string, sessionId: string, timeUpdated: number, title: string) {
   const db = new Database(path);
@@ -61,7 +65,10 @@ function setup() {
       at: 1,
     }) + "\n",
   );
-  writeFileSync(join(gen, "configs.json"), JSON.stringify({ id: "cid1", config: { model: "m" } }) + "\n");
+  writeFileSync(
+    join(gen, "configs.json"),
+    JSON.stringify({ id: "cid1", config: FIXTURE_CONFIG }) + "\n",
+  );
 
   return { hostDb, store };
 }
@@ -89,17 +96,46 @@ test("lists configs grouped by configId with a no-config bucket", () => {
   const reader = new MultiSourceReader(hostDb, store);
   const byKey = Object.fromEntries(reader.listConfigs().map((c) => [c.configId ?? "none", c]));
 
-  expect(byKey.cid1.profile).toBe("muse-spark");
-  expect(byKey.cid1.sessions).toBe(1);
-  expect(byKey.cid1.totalCost).toBe(1);
+  expect(byKey[CID].profile).toBe("muse-spark");
+  expect(byKey[CID].sessions).toBe(1);
+  expect(byKey[CID].totalCost).toBe(1);
   expect(byKey.none.sessions).toBe(1);
   expect(byKey.none.profile).toBeNull();
 
-  const detail = reader.getConfig("cid1");
-  expect(detail?.config).toEqual({ model: "m" });
+  const detail = reader.getConfig(CID);
+  expect(detail?.config).toEqual(FIXTURE_CONFIG);
   expect(detail?.sessionList.map((s) => s.id)).toEqual(["v1"]);
   expect(reader.getConfig("none")?.sessionList.map((s) => s.id)).toEqual(["h1"]);
   expect(reader.getConfig("missing")).toBeNull();
+});
+
+test("merges configs captured with reordered plugins into one fingerprint", () => {
+  const { hostDb, store } = setup();
+  const gen = join(store, "devbox-reorder");
+  mkdirSync(gen, { recursive: true });
+  seedDb(join(gen, "opencode.db"), "v9", 5000, "reordered");
+  const config = { model: "m", plugins: ["a", "b"], skills: ["s"] };
+  writeFileSync(
+    join(gen, "configs.json"),
+    JSON.stringify({ id: "raw-reordered", config: { ...config, plugins: ["b", "a"] } }) + "\n",
+  );
+  writeFileSync(
+    join(gen, "captures.jsonl"),
+    JSON.stringify({
+      sessionId: "v9",
+      profile: "muse-spark",
+      model: { modelID: "m" },
+      configId: "raw-reordered",
+      at: 1,
+    }) + "\n",
+  );
+  const reader = new MultiSourceReader(hostDb, store);
+  const merged = reader.listConfigs().filter((c) => c.configId === CID);
+  expect(merged).toHaveLength(1);
+  expect(merged[0].sessions).toBe(2);
+  expect(merged[0].plugins).toEqual(["a", "b"]);
+  expect(merged[0].skills).toEqual(["s"]);
+  expect(merged[0].stats.cost.count).toBe(2);
 });
 
 test("filters configs to sessions created after a period start", () => {
@@ -107,7 +143,7 @@ test("filters configs to sessions created after a period start", () => {
   const reader = new MultiSourceReader(hostDb, store);
   // h1 created at 900, v1 at 1900 — from 1500 keeps only the vm config
   const configs = reader.listConfigs({ from: 1500 });
-  expect(configs.map((c) => c.configId)).toEqual(["cid1"]);
+  expect(configs.map((c) => c.configId)).toEqual([CID]);
   expect(configs[0].sessions).toBe(1);
 });
 
@@ -149,7 +185,7 @@ test("filters sessions by source", () => {
 test("filters sessions by configId, with a no-config bucket", () => {
   const { hostDb, store } = setup();
   const reader = new MultiSourceReader(hostDb, store);
-  expect(reader.listSessions({ configId: "cid1" } as any).items.map((s) => s.id)).toEqual(["v1"]);
+  expect(reader.listSessions({ configId: CID } as any).items.map((s) => s.id)).toEqual(["v1"]);
   expect(reader.listSessions({ configId: "none" } as any).items.map((s) => s.id)).toEqual(["h1"]);
 });
 

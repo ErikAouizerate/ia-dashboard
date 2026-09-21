@@ -150,11 +150,15 @@ export class DashboardService {
       byDay: this.reader.aggregateByDay({ from }),
       byConfig: this.reader.listConfigs({ from }).map((c) => ({
         configId: c.configId,
+        configIds: c.configIds,
         profile: c.profile,
+        plugins: c.plugins,
+        skills: c.skills,
         sessions: c.sessions,
         totalCost: c.totalCost,
         tokensInput: c.tokensInput,
         tokensOutput: c.tokensOutput,
+        stats: c.stats,
         models: c.models,
       })),
       timeByProject: [...timeByProject.values()].sort(

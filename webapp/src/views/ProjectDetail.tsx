@@ -107,7 +107,7 @@ export function ProjectDetail() {
             stackOf={(r) =>
               r.models.map((m: ProjectConfigRow["models"][number]) => ({
                 value: m.totalCost,
-                className: colorOf(m.model),
+                color: colorOf(m.model),
                 title: `${m.model}: ${m.totalCost.toFixed(2)} €`,
               }))
             }

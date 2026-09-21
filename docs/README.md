@@ -8,6 +8,7 @@ See the root [README](../README.md) for setup and usage.
 ## Project artifacts
 - [Design spec](superpowers/specs/2026-08-27-ia-dashboard-design.md)
 - [Implementation plan](superpowers/plans/2026-08-27-ia-dashboard.md)
+- [A/B testing protocol](ab-testing-config-protocol.md)
 
 ## Sub-projects
 - `api/` — NestJS (TypeScript) API: reads `opencode.db` via better-sqlite3 (read-only),

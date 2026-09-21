@@ -40,8 +40,11 @@ const readerMock = {
   listConfigs: jest.fn().mockReturnValue([
     {
       configId: "cid1",
+      configIds: ["cid1"],
       profile: "muse-spark",
       config: { model: "m" },
+      plugins: ["ponytail"],
+      skills: ["caveman"],
       sessions: 2,
       totalCost: 6,
       tokensInput: 500,
@@ -49,6 +52,11 @@ const readerMock = {
       bySource: [
         { source: "host", sessions: 2, totalCost: 6, tokensInput: 500, tokensOutput: 500 },
       ],
+      stats: {
+        cost: { count: 2, median: 3, p25: 3, p75: 3, min: 3, max: 3, mean: 3 },
+        tokensOutput: { count: 2, median: 250, p25: 250, p75: 250, min: 250, max: 250, mean: 250 },
+        durationMs: { count: 2, median: 1000, p25: 1000, p75: 1000, min: 1000, max: 1000, mean: 1000 },
+      },
       models: [
         {
           model: "deepseek-v4-flash",
@@ -252,11 +260,19 @@ describe("DashboardService", () => {
     expect(out.byConfig).toEqual([
       {
         configId: "cid1",
+        configIds: ["cid1"],
         profile: "muse-spark",
+        plugins: ["ponytail"],
+        skills: ["caveman"],
         sessions: 2,
         totalCost: 6,
         tokensInput: 500,
         tokensOutput: 500,
+        stats: {
+          cost: { count: 2, median: 3, p25: 3, p75: 3, min: 3, max: 3, mean: 3 },
+          tokensOutput: { count: 2, median: 250, p25: 250, p75: 250, min: 250, max: 250, mean: 250 },
+          durationMs: { count: 2, median: 1000, p25: 1000, p75: 1000, min: 1000, max: 1000, mean: 1000 },
+        },
         models: [
           {
             model: "deepseek-v4-flash",

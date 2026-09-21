@@ -1,60 +1,50 @@
 import type { DashboardSummary } from "../store/dashboard";
 
-export interface FilteredSummary {
-  totalCost: number;
-  tokensInput: number;
-  tokensOutput: number;
-  byModel: DashboardSummary["byModel"];
-  byProject: DashboardSummary["byProject"];
-  byConfig: DashboardSummary["byConfig"];
-}
-
-export function filterModels(
+export function filterHiddenModels(
   summary: DashboardSummary,
   hidden: Set<string>,
-): FilteredSummary {
-  const visible = (model: string) => !hidden.has(model);
+): DashboardSummary {
+  if (hidden.size === 0) return summary;
+  const keep = (model: string) => !hidden.has(model);
 
-  const byModel = summary.byModel.filter((m) => visible(m.model));
+  const byModel = summary.byModel.filter((m) => keep(m.model));
 
   const byProject = summary.byProject
     .map((p) => {
-      const models = p.models.filter((m) => visible(m.model));
-      const totalCost = models.reduce((s, m) => s + m.totalCost, 0);
+      const models = p.models.filter((m) => keep(m.model));
       return {
         ...p,
-        models: models.map((m) => ({
-          ...m,
-          share: totalCost > 0 ? m.totalCost / totalCost : 0,
-        })),
-        totalCost,
+        models,
+        totalCost: models.reduce((s, m) => s + m.totalCost, 0),
         tokensInput: models.reduce((s, m) => s + m.tokensInput, 0),
         tokensOutput: models.reduce((s, m) => s + m.tokensOutput, 0),
+        sessions: models.reduce((s, m) => s + m.sessions, 0),
       };
     })
     .filter((p) => p.models.length > 0);
 
   const byConfig = summary.byConfig
     .map((c) => {
-      const models = c.models.filter((m) => visible(m.model));
+      const models = c.models.filter((m) => keep(m.model));
       return {
         ...c,
         models,
         totalCost: models.reduce((s, m) => s + m.totalCost, 0),
         tokensInput: models.reduce((s, m) => s + m.tokensInput, 0),
         tokensOutput: models.reduce((s, m) => s + m.tokensOutput, 0),
+        sessions: models.reduce((s, m) => s + m.sessions, 0),
       };
     })
     .filter((c) => c.models.length > 0);
 
-  const totals = byModel.reduce(
-    (a, m) => ({
-      totalCost: a.totalCost + m.totalCost,
-      tokensInput: a.tokensInput + m.tokensInput,
-      tokensOutput: a.tokensOutput + m.tokensOutput,
-    }),
-    { totalCost: 0, tokensInput: 0, tokensOutput: 0 },
-  );
-
-  return { ...totals, byModel, byProject, byConfig };
+  return {
+    ...summary,
+    totalCost: byModel.reduce((s, m) => s + m.totalCost, 0),
+    tokensInput: byModel.reduce((s, m) => s + m.tokensInput, 0),
+    tokensOutput: byModel.reduce((s, m) => s + m.tokensOutput, 0),
+    sessionCount: byModel.reduce((s, m) => s + m.sessions, 0),
+    byModel,
+    byProject,
+    byConfig,
+  };
 }

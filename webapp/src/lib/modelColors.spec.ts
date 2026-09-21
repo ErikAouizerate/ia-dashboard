@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MODEL_COLORS, buildModelColorMap } from "./modelColors";
+import { buildModelColorMap, modelColorAt } from "./modelColors";
+
+describe("modelColorAt", () => {
+  it("returns distinct colors for the first 20 indices", () => {
+    const colors = new Set(Array.from({ length: 20 }, (_, i) => modelColorAt(i)));
+    expect(colors.size).toBe(20);
+  });
+});
 
 describe("buildModelColorMap", () => {
   const projects = [
@@ -17,11 +24,14 @@ describe("buildModelColorMap", () => {
     expect(colorOf("claude-sonnet")).toBe(colorOf("claude-sonnet"));
   });
 
-  it("maps different models to different colors within the palette", () => {
+  it("maps different models to different colors", () => {
     const colorOf = buildModelColorMap(projects);
-    const colors = new Set([colorOf("deepseek-v4-flash"), colorOf("claude-sonnet"), colorOf("gpt-4o")]);
+    const colors = new Set([
+      colorOf("deepseek-v4-flash"),
+      colorOf("claude-sonnet"),
+      colorOf("gpt-4o"),
+    ]);
     expect(colors.size).toBe(3);
-    expect(MODEL_COLORS).toContain(colorOf("deepseek-v4-flash"));
   });
 
   it("is deterministic across calls", () => {
@@ -33,13 +43,6 @@ describe("buildModelColorMap", () => {
 
   it("falls back to the first color for unknown models", () => {
     const colorOf = buildModelColorMap([]);
-    expect(colorOf("unknown")).toBe(MODEL_COLORS[0]);
-  });
-
-  it("gives every model in the palette a distinct color", () => {
-    const models = MODEL_COLORS.map((_, i) => ({ model: `model-${i}` }));
-    const colorOf = buildModelColorMap([{ models }]);
-    const colors = new Set(models.map((m) => colorOf(m.model)));
-    expect(colors.size).toBe(MODEL_COLORS.length);
+    expect(colorOf("unknown")).toBe(modelColorAt(0));
   });
 });

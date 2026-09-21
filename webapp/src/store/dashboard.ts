@@ -1,3 +1,5 @@
+import { ConfigStats } from "./configs";
+
 export interface DashboardSummary {
   periodDays: number;
   totalCost: number;
@@ -29,11 +31,15 @@ export interface DashboardSummary {
   }[];
   byConfig: {
     configId: string | null;
+    configIds: string[];
     profile: string | null;
+    plugins: string[];
+    skills: string[];
     sessions: number;
     totalCost: number;
     tokensInput: number;
     tokensOutput: number;
+    stats: ConfigStats;
     models: {
       model: string;
       sessions: number;

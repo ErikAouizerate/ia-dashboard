@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { OpenCodeReader } from "./opencode-reader";
+import { configFingerprint } from "./config-fingerprint";
+import { stat, Stat } from "./stats";
 import {
   DayAggregate,
   DirectoryAggregate,
@@ -30,6 +32,17 @@ export interface SessionConfigSnapshot {
 
 export const NO_CONFIG_ID = "none";
 
+function stringList(config: unknown, key: string): string[] {
+  if (!config || typeof config !== "object") return [];
+  const value = (config as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+}
+
+function pluginLabel(plugin: string): string {
+  const path = plugin.replace(/^file:\/\//, "");
+  return path.includes("/") ? basename(path) : plugin;
+}
+
 export interface ConfigSession {
   id: string;
   title: string;
@@ -38,7 +51,10 @@ export interface ConfigSession {
   cost: number;
   tokensInput: number;
   tokensOutput: number;
+  tokensReasoning: number;
+  cacheRead: number;
   timeCreated: number;
+  timeUpdated: number;
   projectName: string;
 }
 
@@ -50,16 +66,26 @@ export interface ConfigModelStat {
   tokensOutput: number;
 }
 
+export interface ConfigStats {
+  cost: Stat;
+  tokensOutput: Stat;
+  durationMs: Stat;
+}
+
 export interface ConfigSummary {
   configId: string | null;
+  configIds: string[];
   profile: string | null;
   config: unknown | null;
+  plugins: string[];
+  skills: string[];
   sessions: number;
   totalCost: number;
   tokensInput: number;
   tokensOutput: number;
   bySource: SourceAggregate[];
   models: ConfigModelStat[];
+  stats: ConfigStats;
 }
 
 export interface ConfigDetail extends ConfigSummary {
@@ -71,6 +97,7 @@ interface Capture {
   agent: string | null;
   model: string | null;
   configId: string | null;
+  rawConfigId: string | null;
   offeredTools: string[];
 }
 
@@ -141,15 +168,24 @@ export class MultiSourceReader implements SessionReader {
       }
     }
     const capPath = join(dir, "captures.jsonl");
+    // raw configId hashes preserve plugin order; normalize to a fingerprint so the
+    // same config captured with reordered plugins groups once.
+    const fingerprint = new Map<string, string>();
+    for (const [rawId, cfg] of source.configs) {
+      const fp = configFingerprint(cfg);
+      if (fp) fingerprint.set(rawId, fp);
+    }
     if (existsSync(capPath)) {
       for (const line of readFileSync(capPath, "utf8").split("\n")) {
         if (!line.trim()) continue;
         const c = JSON.parse(line) as any;
+        const rawConfigId = c.configId ?? null;
         source.captures.set(c.sessionId, {
           profile: c.profile ?? null,
           agent: c.agent ?? null,
           model: c.model?.modelID ?? null,
-          configId: c.configId ?? null,
+          configId: rawConfigId ? (fingerprint.get(rawConfigId) ?? rawConfigId) : null,
+          rawConfigId,
           offeredTools: c.offeredTools ?? [],
         });
       }
@@ -480,7 +516,14 @@ export class MultiSourceReader implements SessionReader {
     for (const s of this.sources) {
       const c = s.captures.get(sessionId);
       if (c) {
-        return { ...c, config: c.configId ? (s.configs.get(c.configId) ?? null) : null };
+        return {
+          profile: c.profile,
+          agent: c.agent,
+          model: c.model,
+          configId: c.configId,
+          offeredTools: c.offeredTools,
+          config: c.rawConfigId ? (s.configs.get(c.rawConfigId) ?? null) : null,
+        };
       }
     }
     return null;
@@ -504,12 +547,19 @@ export class MultiSourceReader implements SessionReader {
   private buildConfigs(from: number, directories?: string[]): ConfigDetail[] {
     this.refresh();
     // ponytail: full session scan per request; index configs if the history grows large
-    const captures = new Map<string, SessionConfigSnapshot>();
+    const captures = new Map<string, { cap: SessionConfigSnapshot; rawConfigId: string | null }>();
     for (const s of this.sources) {
       for (const [sessionId, c] of s.captures) {
         captures.set(sessionId, {
-          ...c,
-          config: c.configId ? (s.configs.get(c.configId) ?? null) : null,
+          cap: {
+            profile: c.profile,
+            agent: c.agent,
+            model: c.model,
+            configId: c.configId,
+            offeredTools: c.offeredTools,
+            config: c.rawConfigId ? (s.configs.get(c.rawConfigId) ?? null) : null,
+          },
+          rawConfigId: c.rawConfigId,
         });
       }
     }
@@ -517,22 +567,34 @@ export class MultiSourceReader implements SessionReader {
     const map = new Map<string, ConfigDetail>();
     for (const s of this.collectAll(directories?.length ? { directories } : {})) {
       if (from > 0 && s.timeCreated < from) continue;
-      const cap = captures.get(s.id) ?? null;
+      const entry = captures.get(s.id) ?? null;
+      const cap = entry?.cap ?? null;
       const key = cap?.configId ?? NO_CONFIG_ID;
       const c: ConfigDetail = map.get(key) ?? {
         configId: cap?.configId ?? null,
+        configIds: [],
         profile: null,
         config: null,
+        plugins: [],
+        skills: [],
         sessions: 0,
         totalCost: 0,
         tokensInput: 0,
         tokensOutput: 0,
         bySource: [],
         models: [],
+        stats: { cost: stat([]), tokensOutput: stat([]), durationMs: stat([]) },
         sessionList: [],
       };
       if (!c.profile && cap?.profile) c.profile = cap.profile;
-      if (c.config == null && cap?.config != null) c.config = cap.config;
+      if (c.config == null && cap?.config != null) {
+        c.config = cap.config;
+        c.plugins = stringList(cap.config, "plugins").map(pluginLabel).sort();
+        c.skills = stringList(cap.config, "skills").sort();
+      }
+      if (entry?.rawConfigId && !c.configIds.includes(entry.rawConfigId)) {
+        c.configIds.push(entry.rawConfigId);
+      }
       c.sessions++;
       c.totalCost += s.cost;
       c.tokensInput += s.tokensInput;
@@ -578,7 +640,10 @@ export class MultiSourceReader implements SessionReader {
         cost: s.cost,
         tokensInput: s.tokensInput,
         tokensOutput: s.tokensOutput,
+        tokensReasoning: s.tokensReasoning,
+        cacheRead: s.tokensCacheRead,
         timeCreated: s.timeCreated,
+        timeUpdated: s.timeUpdated,
         projectName: s.projectName,
       });
 
@@ -589,6 +654,12 @@ export class MultiSourceReader implements SessionReader {
     for (const c of list) {
       c.models.sort((a, b) => b.totalCost - a.totalCost);
       c.sessionList.sort((a, b) => b.timeCreated - a.timeCreated);
+      // ponytail: duration = timeUpdated - timeCreated, a proxy (no native duration field)
+      c.stats = {
+        cost: stat(c.sessionList.map((s) => s.cost)),
+        tokensOutput: stat(c.sessionList.map((s) => s.tokensOutput)),
+        durationMs: stat(c.sessionList.map((s) => s.timeUpdated - s.timeCreated)),
+      };
     }
     return list.sort((a, b) => b.totalCost - a.totalCost);
   }
