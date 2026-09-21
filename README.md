@@ -82,6 +82,21 @@ URLs above.
 pnpm test
 ```
 
+### Mutation testing (StrykerJS)
+
+Stryker mutates the source and checks that the tests fail on the mutants — it
+measures how well the tests actually assert behavior, not just coverage.
+
+```bash
+pnpm test:mutation                                  # both packages
+pnpm --filter @ia-dashboard/api test:mutation       # api only (Jest)
+pnpm --filter @ia-dashboard/webapp test:mutation    # webapp only (Vitest)
+```
+
+Reports are written to `<package>/reports/mutation/` (ignored by git). The
+first run is slow; `incremental: true` speeds up later runs. No score threshold
+is enforced yet — read the baseline first, then add a `thresholds.break`.
+
 ## Deploy (Dokploy)
 
 Dokploy deploys `docker-compose.yml` as-is. Services use `expose` (no host `ports`)
