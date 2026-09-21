@@ -3,9 +3,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
 import { RootState } from "../store/store";
 import { configLabel } from "../store/configs";
+import { Badge } from "../components/ui/Badge";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Spinner } from "../components/ui/Spinner";
+import { formatDuration } from "../lib/format";
 
 export function ConfigDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,8 @@ export function ConfigDetail() {
   if (error) return <div className="p-6 text-red-700">{error}</div>;
   if (!current) return <p className="p-6">Config introuvable</p>;
 
+  const { stats } = current;
+
   return (
     <div>
       <Link to="/configs" className="text-sm text-blue-600 hover:underline">
@@ -38,24 +42,44 @@ export function ConfigDetail() {
         title={configLabel(current)}
         subtitle={current.configId ?? "aucune config capturée pour ces sessions"}
       />
+      {((current.plugins ?? []).length > 0 || (current.skills ?? []).length > 0) && (
+        <div className="mb-3 flex flex-wrap gap-1">
+          {(current.plugins ?? []).map((p) => (
+            <Badge key={p} tone="blue">
+              {p}
+            </Badge>
+          ))}
+          {(current.skills ?? []).map((s) => (
+            <Badge key={s}>{s}</Badge>
+          ))}
+        </div>
+      )}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card className="p-3">
           <div className="text-xs uppercase text-gray-500">Sessions</div>
           <div className="text-lg font-semibold tabular-nums">{current.sessions}</div>
         </Card>
         <Card className="p-3">
-          <div className="text-xs uppercase text-gray-500">Coût</div>
-          <div className="text-lg font-semibold tabular-nums">{current.totalCost.toFixed(2)} €</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs uppercase text-gray-500">Tokens</div>
+          <div className="text-xs uppercase text-gray-500">Coût médian</div>
           <div className="text-lg font-semibold tabular-nums">
-            {(current.tokensInput + current.tokensOutput).toLocaleString()}
+            {stats.cost.median.toFixed(3)} €
+          </div>
+          <div className="text-xs text-gray-500 tabular-nums">
+            {stats.cost.min.toFixed(3)}–{stats.cost.max.toFixed(3)} €
           </div>
         </Card>
         <Card className="p-3">
-          <div className="text-xs uppercase text-gray-500">Modèles</div>
-          <div className="text-lg font-semibold tabular-nums">{current.models.length}</div>
+          <div className="text-xs uppercase text-gray-500">Out médian</div>
+          <div className="text-lg font-semibold tabular-nums">
+            {Math.round(stats.tokensOutput.median).toLocaleString()}
+          </div>
+          <div className="text-xs text-gray-500">p25–p75 {Math.round(stats.tokensOutput.p25).toLocaleString()}–{Math.round(stats.tokensOutput.p75).toLocaleString()}</div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs uppercase text-gray-500">Durée médiane</div>
+          <div className="text-lg font-semibold tabular-nums">
+            {formatDuration(stats.durationMs.median)}
+          </div>
         </Card>
       </div>
 
@@ -96,7 +120,7 @@ export function ConfigDetail() {
         </Card>
       </div>
 
-      <Card className="mt-4 overflow-hidden">
+      <Card className="mt-4 overflow-x-auto">
         <h3 className="p-4 pb-2 text-sm font-semibold text-gray-900">Sessions</h3>
         <table className="w-full text-sm">
           <thead>
@@ -106,6 +130,8 @@ export function ConfigDetail() {
               <th className="px-3 py-2">Source</th>
               <th className="px-3 py-2">Model</th>
               <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2 text-right">Durée</th>
+              <th className="px-3 py-2 text-right">Out</th>
               <th className="px-3 py-2 text-right">Cost</th>
             </tr>
           </thead>
@@ -126,7 +152,13 @@ export function ConfigDetail() {
                 <td className="whitespace-nowrap px-3 py-2">
                   {s.timeCreated ? new Date(s.timeCreated).toLocaleDateString() : "—"}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">{s.cost.toFixed(2)} €</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                  {formatDuration(s.timeUpdated - s.timeCreated)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {s.tokensOutput.toLocaleString()}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{s.cost.toFixed(3)} €</td>
               </tr>
             ))}
           </tbody>

@@ -6,16 +6,36 @@ export interface ConfigModelStat {
   tokensOutput: number;
 }
 
+export interface Stat {
+  count: number;
+  median: number;
+  p25: number;
+  p75: number;
+  min: number;
+  max: number;
+  mean: number;
+}
+
+export interface ConfigStats {
+  cost: Stat;
+  tokensOutput: Stat;
+  durationMs: Stat;
+}
+
 export interface ConfigRow {
   configId: string | null;
+  configIds: string[];
   profile: string | null;
   config: unknown | null;
+  plugins: string[];
+  skills: string[];
   sessions: number;
   totalCost: number;
   tokensInput: number;
   tokensOutput: number;
   bySource: { source: string; sessions: number; totalCost: number }[];
   models: ConfigModelStat[];
+  stats: ConfigStats;
 }
 
 export interface ConfigSession {
@@ -26,7 +46,10 @@ export interface ConfigSession {
   cost: number;
   tokensInput: number;
   tokensOutput: number;
+  tokensReasoning: number;
+  cacheRead: number;
   timeCreated: number;
+  timeUpdated: number;
   projectName: string;
 }
 

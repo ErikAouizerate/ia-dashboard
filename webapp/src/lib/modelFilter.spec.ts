@@ -29,11 +29,19 @@ const summary: DashboardSummary = {
   byConfig: [
     {
       configId: "c1",
+      configIds: ["c1"],
       profile: null,
+      plugins: [],
+      skills: [],
       sessions: 3,
       totalCost: 30,
       tokensInput: 1500,
       tokensOutput: 1500,
+      stats: {
+        cost: { count: 3, median: 10, p25: 10, p75: 20, min: 0, max: 20, mean: 10 },
+        tokensOutput: { count: 3, median: 500, p25: 500, p75: 1000, min: 0, max: 1000, mean: 500 },
+        durationMs: { count: 3, median: 1000, p25: 1000, p75: 1000, min: 1000, max: 1000, mean: 1000 },
+      },
       models: [
         { model: "a", sessions: 2, totalCost: 20, tokensInput: 1000, tokensOutput: 1000 },
         { model: "b", sessions: 1, totalCost: 10, tokensInput: 500, tokensOutput: 500 },
