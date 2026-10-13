@@ -422,6 +422,139 @@ function buildExtendFixture(dir: string): string {
   return path;
 }
 
+function buildV2Fixture(dir: string): string {
+  const path = join(dir, "opencode.db");
+  const db = new Database(path);
+  db.exec(`CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT, name TEXT);
+           CREATE TABLE session_v2 (
+             id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, path TEXT,
+             title TEXT, model TEXT, agent TEXT,
+             cost REAL, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+             tokens_cache_read INTEGER, tokens_cache_write INTEGER,
+             summary_additions INTEGER, summary_deletions INTEGER, summary_files INTEGER,
+             time_created INTEGER, time_updated INTEGER, time_compacting INTEGER);
+           CREATE TABLE session_message (
+             id TEXT PRIMARY KEY, session_id TEXT, type TEXT, seq INTEGER,
+             time_created INTEGER, time_updated INTEGER, data TEXT);`);
+  db.prepare("INSERT INTO project (id, worktree, name) VALUES (?,?,?)").run(
+    "proj1",
+    "/home/user/gateway",
+    null,
+  );
+  const ins = db.prepare(
+    `INSERT INTO session_v2 (id, project_id, parent_id, directory, path, title, model, agent, cost,
+       tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+       summary_additions, summary_deletions, summary_files, time_created, time_updated, time_compacting)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  ins.run(
+    "v1",
+    "proj1",
+    null,
+    "/home/user/gateway",
+    "",
+    "Recent session",
+    '{"id":"deepseek-v4.1-flash","providerID":"opencode-go"}',
+    "build",
+    0.6,
+    110,
+    21,
+    5,
+    30,
+    0,
+    0,
+    0,
+    0,
+    1000,
+    4000,
+    null,
+  );
+  ins.run(
+    "v1-sub",
+    "proj1",
+    "v1",
+    "/home/user/gateway",
+    "",
+    "Subagent",
+    '{"id":"deepseek-v4.1-flash","providerID":"opencode-go"}',
+    "general",
+    0.2,
+    5,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1500,
+    2500,
+    null,
+  );
+
+  const insMsg = db.prepare(
+    `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+     VALUES (?,?,?,?,?,?,?)`,
+  );
+  // user span [500,4500] : du temps de saisie, jamais du temps de traitement
+  insMsg.run("v1-mu", "v1", "user", 1, 500, 4500, JSON.stringify({ text: "do it" }));
+  insMsg.run(
+    "v1-ma1",
+    "v1",
+    "assistant",
+    2,
+    1000,
+    2000,
+    JSON.stringify({
+      time: { created: 1000, streamed: 2000 },
+      agent: "build",
+      model: { id: "deepseek-v4.1-flash", providerID: "opencode-go" },
+      cost: 0.5,
+      tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 30, write: 0 } },
+      content: [
+        { type: "text", text: "hi" },
+        { type: "tool", name: "shell", state: { status: "completed" } },
+        { type: "tool", name: "read", state: { status: "error" } },
+      ],
+    }),
+  );
+  insMsg.run(
+    "v1-ma2",
+    "v1",
+    "assistant",
+    3,
+    3000,
+    4000,
+    JSON.stringify({
+      time: { created: 3000, streamed: 4000 },
+      agent: "build",
+      model: { id: "deepseek-v4.1-flash", providerID: "opencode-go" },
+      cost: 0.1,
+      tokens: { input: 10 },
+      content: [],
+    }),
+  );
+  insMsg.run(
+    "v1-sub-ma",
+    "v1-sub",
+    "assistant",
+    1,
+    1500,
+    2500,
+    JSON.stringify({
+      time: { created: 1500, streamed: 2500 },
+      agent: "general",
+      model: { id: "deepseek-v4.1-flash", providerID: "opencode-go" },
+      cost: 0.2,
+      tokens: { input: 5, output: 1 },
+      content: [{ type: "tool", name: "shell", state: { status: "completed" } }],
+    }),
+  );
+
+  db.close();
+  return path;
+}
+
 describe("OpenCodeReader", () => {
   let dir: string;
   let path: string;
@@ -780,6 +913,63 @@ describe("OpenCodeReader", () => {
       expect(list.total).toBe(6);
       const single = reader.listSessions({ directory: "/repo/beta" });
       expect(single.items.map((s) => s.id)).toEqual(["d3"]);
+    });
+  });
+
+  describe("OpenCode v2 schema (session_v2 + session_message)", () => {
+    let reader: OpenCodeReader;
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), "oc-v2-"));
+      path = buildV2Fixture(dir);
+      reader = new OpenCodeReader(path);
+      reader.open();
+    });
+    afterEach(() => reader.close());
+
+    it("reads sessions, parents and subagents from session_v2", () => {
+      const page = reader.listSessions({});
+      expect(page.total).toBe(2);
+      expect(page.items.map((s) => s.id)).toEqual(["v1-sub", "v1"]);
+      expect(reader.getSession("v1")?.model).toBe("deepseek-v4.1-flash");
+      expect(reader.listParentSessions({}).map((s) => s.id)).toEqual(["v1"]);
+      expect(reader.getSessionTree("v1").sort()).toEqual(["v1", "v1-sub"]);
+      expect(reader.listModels()).toEqual(["deepseek-v4.1-flash"]);
+      expect(reader.aggregateAll({}).sessions).toBe(2);
+      expect(reader.aggregateByDirectory({})[0].name).toBe("gateway");
+    });
+
+    it("getSessionCalls parses assistant messages with the model object", () => {
+      const calls = reader.getSessionCalls(["v1", "v1-sub"]);
+      expect(calls).toHaveLength(3);
+      expect(calls.reduce((s, c) => s + c.cost, 0)).toBeCloseTo(0.8);
+      expect(calls[0].model).toBe("deepseek-v4.1-flash");
+      expect(calls[0].agent).toBe("build");
+      expect(calls[0].mode).toBeNull();
+      expect(calls[0].tokensInput).toBe(100);
+      expect(calls[0].cacheRead).toBe(30);
+    });
+
+    it("getSessionSteps uses assistant messages as steps", () => {
+      const steps = reader.getSessionSteps(["v1", "v1-sub"]);
+      expect(steps).toHaveLength(3);
+      expect(steps.reduce((s, x) => s + x.cost, 0)).toBeCloseTo(0.8);
+      expect(steps.reduce((s, x) => s + x.cacheRead, 0)).toBe(30);
+      expect(steps.reduce((s, x) => s + x.tokensOutput, 0)).toBe(21);
+    });
+
+    it("getSessionToolUsage reads tools from the message content", () => {
+      const tools = reader.getSessionToolUsage(["v1", "v1-sub"]);
+      const shell = tools.find((t) => t.tool === "shell")!;
+      expect(shell.count).toBe(2);
+      expect(shell.completed).toBe(2);
+      const read = tools.find((t) => t.tool === "read")!;
+      expect(read.error).toBe(1);
+    });
+
+    it("timeByDirectory counts assistant message spans only, excluding user waits", () => {
+      const rows = reader.timeByDirectory({});
+      expect(rows.find((r) => r.directory === "/home/user/gateway")?.durationMs).toBe(2000);
+      expect(rows).toHaveLength(1);
     });
   });
 });

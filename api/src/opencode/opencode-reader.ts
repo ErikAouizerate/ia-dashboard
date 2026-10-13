@@ -57,6 +57,9 @@ export class OpenCodeReader implements SessionReader {
   private db: Database.Database | null = null;
   private tmpDir: string | null = null;
   private openedSig: string | null = null;
+  // OpenCode v2 renamed the tables: `session` -> `session_v2`, and `message`
+  // + `part` -> `session_message` (parts live in `data.content`).
+  private v2 = false;
 
   constructor(
     private readonly dbPath: string,
@@ -90,7 +93,15 @@ export class OpenCodeReader implements SessionReader {
       }
       this.db = new Database(dest);
     }
+    this.v2 =
+      this.db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_v2'")
+        .get() != null;
     this.openedSig = this.fileSig();
+  }
+
+  private get sessions(): string {
+    return this.v2 ? "session_v2" : "session";
   }
 
   listSessions(filters: SessionListFilters = {}): SessionPage {
@@ -137,7 +148,7 @@ export class OpenCodeReader implements SessionReader {
     const total = (
       db
         .prepare(
-          `SELECT COUNT(*) AS c FROM session s LEFT JOIN project p ON p.id = s.project_id ${whereSql}`,
+          `SELECT COUNT(*) AS c FROM ${this.sessions} s LEFT JOIN project p ON p.id = s.project_id ${whereSql}`,
         )
         .get(params) as { c: number }
     ).c;
@@ -145,7 +156,7 @@ export class OpenCodeReader implements SessionReader {
     const rows = db
       .prepare(
         `SELECT ${SESSION_COLS}
-         FROM session s LEFT JOIN project p ON p.id = s.project_id
+         FROM ${this.sessions} s LEFT JOIN project p ON p.id = s.project_id
          ${whereSql}
          ORDER BY s.time_created DESC
          LIMIT @limit OFFSET @offset`,
@@ -165,7 +176,7 @@ export class OpenCodeReader implements SessionReader {
     const r = db
       .prepare(
         `SELECT ${SESSION_COLS}
-         FROM session s LEFT JOIN project p ON p.id = s.project_id
+         FROM ${this.sessions} s LEFT JOIN project p ON p.id = s.project_id
          WHERE s.id = ?`,
       )
       .get(id) as Row | undefined;
@@ -190,7 +201,7 @@ export class OpenCodeReader implements SessionReader {
     const db = this.requireDb();
     const rows = db
       .prepare(
-        `SELECT DISTINCT model FROM session WHERE model IS NOT NULL AND model != ''`,
+        `SELECT DISTINCT model FROM ${this.sessions} WHERE model IS NOT NULL AND model != ''`,
       )
       .all() as { model: string }[];
     const set = new Set<string>();
@@ -204,7 +215,7 @@ export class OpenCodeReader implements SessionReader {
   getSubagentIds(parentId: string): string[] {
     const db = this.requireDb();
     const rows = db
-      .prepare("SELECT id FROM session WHERE parent_id = ? ORDER BY time_created")
+      .prepare(`SELECT id FROM ${this.sessions} WHERE parent_id = ? ORDER BY time_created`)
       .all(parentId) as { id: string }[];
     return rows.map((r) => r.id);
   }
@@ -214,9 +225,9 @@ export class OpenCodeReader implements SessionReader {
     const rows = db
       .prepare(
         `WITH RECURSIVE tree(id) AS (
-           SELECT id FROM session WHERE id = @id
+           SELECT id FROM ${this.sessions} WHERE id = @id
            UNION ALL
-           SELECT s.id FROM session s JOIN tree t ON s.parent_id = t.id
+           SELECT s.id FROM ${this.sessions} s JOIN tree t ON s.parent_id = t.id
          )
          SELECT id FROM tree`,
       )
@@ -244,9 +255,13 @@ export class OpenCodeReader implements SessionReader {
     const { sql, params } = this.inClause(ids, "c");
     const rows = db
       .prepare(
-        `SELECT session_id, time_created, data FROM message
-         WHERE session_id IN (${sql}) AND json_extract(data, '$.role') = 'assistant'
-         ORDER BY time_created`,
+        this.v2
+          ? `SELECT session_id, time_created, data FROM session_message
+             WHERE session_id IN (${sql}) AND type = 'assistant'
+             ORDER BY time_created`
+          : `SELECT session_id, time_created, data FROM message
+             WHERE session_id IN (${sql}) AND json_extract(data, '$.role') = 'assistant'
+             ORDER BY time_created`,
       )
       .all(params) as { session_id: string; time_created: number; data: string }[];
     return rows.map((r) => {
@@ -260,7 +275,11 @@ export class OpenCodeReader implements SessionReader {
         tokensReasoning: d.tokens?.reasoning ?? 0,
         cacheRead: d.tokens?.cache?.read ?? 0,
         cacheWrite: d.tokens?.cache?.write ?? 0,
-        model: d.modelID ?? "",
+        // v1 stores a modelID string, v2 an embedded model object
+        model:
+          d.model && typeof d.model === "object"
+            ? (d.model.id ?? "")
+            : (d.model ?? d.modelID ?? ""),
         agent: d.agent ?? null,
         mode: d.mode ?? null,
       };
@@ -271,10 +290,14 @@ export class OpenCodeReader implements SessionReader {
     if (ids.length === 0) return [];
     const db = this.requireDb();
     const { sql, params } = this.inClause(ids, "s");
+    // v2 carries one cost/tokens block per assistant message (no step-finish parts)
     const rows = db
       .prepare(
-        `SELECT session_id, data FROM part
-         WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'step-finish'`,
+        this.v2
+          ? `SELECT session_id, data FROM session_message
+             WHERE session_id IN (${sql}) AND type = 'assistant'`
+          : `SELECT session_id, data FROM part
+             WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'step-finish'`,
       )
       .all(params) as { session_id: string; data: string }[];
     return rows.map((r) => {
@@ -295,12 +318,19 @@ export class OpenCodeReader implements SessionReader {
     if (ids.length === 0) return [];
     const db = this.requireDb();
     const { sql, params } = this.inClause(ids, "t");
+    // v2 keeps tool parts inside the assistant message content, named `name`
     const rows = db
       .prepare(
-        `SELECT json_extract(data, '$.tool') AS tool,
-                json_extract(data, '$.state.status') AS status
-         FROM part
-         WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'tool'`,
+        this.v2
+          ? `SELECT json_extract(c.value, '$.name') AS tool,
+                    json_extract(c.value, '$.state.status') AS status
+             FROM session_message m, json_each(m.data, '$.content') c
+             WHERE m.session_id IN (${sql}) AND m.type = 'assistant'
+               AND json_extract(c.value, '$.type') = 'tool'`
+          : `SELECT json_extract(data, '$.tool') AS tool,
+                    json_extract(data, '$.state.status') AS status
+             FROM part
+             WHERE session_id IN (${sql}) AND json_extract(data, '$.type') = 'tool'`,
       )
       .all(params) as { tool: string | null; status: string | null }[];
     const map = new Map<string, ToolUsage>();
@@ -322,7 +352,7 @@ export class OpenCodeReader implements SessionReader {
         `SELECT directory,
                 MIN(time_created) AS firstSeen,
                 MAX(time_updated) AS lastSeen
-         FROM session
+         FROM ${this.sessions}
          WHERE directory IS NOT NULL AND directory != ''
          GROUP BY directory
          ORDER BY lastSeen DESC`,
@@ -342,7 +372,7 @@ export class OpenCodeReader implements SessionReader {
     const rows = db
       .prepare(
         `SELECT ${SESSION_COLS}
-         FROM session s LEFT JOIN project p ON p.id = s.project_id
+         FROM ${this.sessions} s LEFT JOIN project p ON p.id = s.project_id
          WHERE ${where.join(" AND ")}
          ORDER BY s.time_created ASC`,
       )
@@ -358,7 +388,7 @@ export class OpenCodeReader implements SessionReader {
                 COALESCE(SUM(tokens_input),0) AS tokensInput,
                 COALESCE(SUM(tokens_output),0) AS tokensOutput,
                 COUNT(*) AS sessions
-         FROM session WHERE time_created >= @from`,
+         FROM ${this.sessions} WHERE time_created >= @from`,
       )
       .get({ from }) as Omit<SessionAggregate, "bySource">;
     return { ...r, bySource: this.sourceEntry(r) };
@@ -379,7 +409,7 @@ export class OpenCodeReader implements SessionReader {
                 COUNT(*) AS sessions,
                 MIN(time_created) AS firstSeen,
                 MAX(time_updated) AS lastSeen
-         FROM session
+         FROM ${this.sessions}
          WHERE time_created >= @from AND directory IS NOT NULL AND directory != ''
          GROUP BY directory ORDER BY totalCost DESC`,
       )
@@ -400,7 +430,7 @@ export class OpenCodeReader implements SessionReader {
                 COALESCE(SUM(tokens_input),0) AS tokensInput,
                 COALESCE(SUM(tokens_output),0) AS tokensOutput,
                 COUNT(*) AS sessions
-         FROM session
+         FROM ${this.sessions}
          WHERE time_created >= @from AND directory IS NOT NULL AND directory != ''
          GROUP BY directory, model`,
       )
@@ -442,15 +472,25 @@ export class OpenCodeReader implements SessionReader {
     const db = this.requireDb();
     const rows = db
       .prepare(
-        `SELECT s.directory AS directory, m.session_id AS session_id,
-                p.time_created AS t0, p.time_updated AS t1
-         FROM part p
-         JOIN message m ON m.id = p.message_id
-         JOIN session s ON s.id = m.session_id
-         WHERE s.parent_id IS NULL
-           AND s.time_created >= @from
-           AND p.time_updated > p.time_created
-         ORDER BY s.directory, m.session_id, p.time_created`,
+        this.v2
+          ? `SELECT s.directory AS directory, m.session_id AS session_id,
+                    m.time_created AS t0, m.time_updated AS t1
+             FROM session_message m
+             JOIN ${this.sessions} s ON s.id = m.session_id
+             WHERE s.parent_id IS NULL
+               AND s.time_created >= @from
+               AND m.type = 'assistant'
+               AND m.time_updated > m.time_created
+             ORDER BY s.directory, m.session_id, m.time_created`
+          : `SELECT s.directory AS directory, m.session_id AS session_id,
+                    p.time_created AS t0, p.time_updated AS t1
+             FROM part p
+             JOIN message m ON m.id = p.message_id
+             JOIN ${this.sessions} s ON s.id = m.session_id
+             WHERE s.parent_id IS NULL
+               AND s.time_created >= @from
+               AND p.time_updated > p.time_created
+             ORDER BY s.directory, m.session_id, p.time_created`,
       )
       .all({ from }) as {
       directory: string;
@@ -510,7 +550,7 @@ export class OpenCodeReader implements SessionReader {
                 COALESCE(SUM(tokens_input),0) AS tokensInput,
                 COALESCE(SUM(tokens_output),0) AS tokensOutput,
                 COUNT(*) AS sessions
-         FROM session WHERE time_created >= @from
+         FROM ${this.sessions} WHERE time_created >= @from
          GROUP BY model ORDER BY totalCost DESC`,
       )
       .all({ from }) as {
@@ -550,7 +590,7 @@ export class OpenCodeReader implements SessionReader {
     const rows = db
       .prepare(
         `SELECT time_created, cost, tokens_input AS tokensInput, tokens_output AS tokensOutput
-         FROM session WHERE time_created >= @from ORDER BY time_created`,
+         FROM ${this.sessions} WHERE time_created >= @from ORDER BY time_created`,
       )
       .all({ from }) as {
       time_created: number;

@@ -192,14 +192,22 @@ export class MultiSourceReader implements SessionReader {
     }
   }
 
+  private warnUnavailable(source: string, err: unknown): void {
+    // a broken source must not take the whole result down, but it must not be
+    // invisible either: a silent skip once hid a whole schema change.
+    console.warn(
+      `[opencode] source ${source} skipped: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   private collect<T>(fn: (reader: OpenCodeReader) => T[]): T[][] {
     this.refresh();
     const out: T[][] = [];
     for (const s of this.sources) {
       try {
         out.push(fn(s.reader));
-      } catch {
-        // a broken source must not take the whole result down
+      } catch (err) {
+        this.warnUnavailable(s.source, err);
       }
     }
     return out;
@@ -226,8 +234,8 @@ export class MultiSourceReader implements SessionReader {
     for (const s of this.sources) {
       try {
         if (s.reader.getSession(id)) return s.reader;
-      } catch {
-        // skip broken source
+      } catch (err) {
+        this.warnUnavailable(s.source, err);
       }
     }
     return null;
@@ -247,8 +255,8 @@ export class MultiSourceReader implements SessionReader {
     for (const [reader, sub] of byReader) {
       try {
         out.push(...fn(reader, sub));
-      } catch {
-        // skip broken source
+      } catch (err) {
+        this.warnUnavailable(reader.source, err);
       }
     }
     return out;
@@ -286,7 +294,8 @@ export class MultiSourceReader implements SessionReader {
           collected.push(...p.items);
           pageNo++;
         }
-      } catch {
+      } catch (err) {
+        this.warnUnavailable(s.source, err);
         continue;
       }
       for (const item of collected) {
@@ -337,8 +346,8 @@ export class MultiSourceReader implements SessionReader {
       try {
         const found = s.reader.getSession(id);
         if (found && (!best || found.timeUpdated > best.timeUpdated)) best = found;
-      } catch {
-        // skip broken source
+      } catch (err) {
+        this.warnUnavailable(s.source, err);
       }
     }
     return best;

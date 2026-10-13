@@ -71,6 +71,8 @@ URLs above.
 - The API opens `opencode.db` **read-only** (`file:...?mode=ro`). If a read-only
   connection fails (locked/WAL), it copies the db + `-wal`/`-shm` to a temp dir and
   reads the copy. It **never writes** to the OpenCode database.
+- Both OpenCode schema generations are read: v1 (`session`, `message`, `part`) and
+  v2 (`session_v2`, `session_message` — parts live in the message `content`).
 - Postgres holds the derived `projects` rows (directory, first/last seen, stale).
 - The session list always comes live from SQLite.
 - `project.name` is NULL in the OpenCode DB, so the project display name is derived
